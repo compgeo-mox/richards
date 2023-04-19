@@ -176,3 +176,5 @@ nbproject/
 *.mat
 *.py_o
 *.txt
+
+/src/darcy_initial_tests/output*
