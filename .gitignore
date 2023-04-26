@@ -178,3 +178,6 @@ nbproject/
 *.txt
 
 /src/darcy_initial_tests/output*
+/src/richards_initial_tests/output*
+
+.venv
