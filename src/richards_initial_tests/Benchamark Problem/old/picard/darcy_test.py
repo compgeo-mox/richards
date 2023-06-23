@@ -47,7 +47,8 @@ div = cell_mass @ pg.div(mdg)
 dt = 0.1
 beta = 0.1
 
-spp = sps.bmat([[face_mass, -div.T], [div, beta * cell_mass / dt]], format="csc")
+spp = sps.bmat([[face_mass,                 -div.T], 
+                [div,        beta * cell_mass / dt]], format="csc")
 
 
 dof_p, dof_q = div.shape
