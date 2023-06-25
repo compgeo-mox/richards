@@ -1,0 +1,6 @@
+[submodule "porepy"]
+	path = porepy
+	url = https://github.com/faccus/porepy
+[submodule "pygeon"]
+	path = pygeon
+	url = https://github.com/faccus/pygeon
