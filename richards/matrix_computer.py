@@ -7,6 +7,8 @@ class Matrix_Computer:
     def __init__(self, mdg, key='flow'):
         self.RT0 = pg.RT0(key)
         self.P0  = pg.PwConstants(key)
+
+
         self.key = key
 
         self.prepared_C = False
@@ -19,12 +21,67 @@ class Matrix_Computer:
         self.B = None
         self.mixed_matrix = None
 
+        self.dof_q = []
+        self.dof_psi = []
+
+
         for subdomain, data in self.mdg.subdomains(return_data=True):
             pp.initialize_data(subdomain, data, key, {
                 "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
             })
 
+            self.dof_q.append( self.RT0.ndof(subdomain) )
+            self.dof_psi.append( self.P0.ndof(subdomain) )
+            
 
+        self.proj_q = []
+        self.proj_psi = []
+
+
+    def compute_proj_q_mat(self):
+        if len(self.proj_q) == 0:
+            for subdomain in self.mdg.subdomains(return_data=False):
+                self.proj_q.append( self.RT0.eval_at_cell_centers(subdomain) )
+        return self.proj_q
+
+
+    def compute_proj_psi_mat(self):
+        if len(self.proj_psi) == 0:
+            for subdomain in self.mdg.subdomains(return_data=False):
+                self.proj_psi.append( self.P0.eval_at_cell_centers(subdomain) )
+        return self.proj_psi
+
+    def project_q_to_solution(self, to_project: list):
+        mats = self.compute_proj_q_mat()
+
+        assert(len(mats) == len(to_project))
+
+        res = []
+
+        for matrix, vector in zip(mats, to_project):
+            res.append( matrix @ vector )
+
+        return res
+
+    def project_psi_to_solution(self, to_project: list):
+        mats = self.compute_proj_psi_mat()
+
+        assert(len(mats) == len(to_project))
+
+        res = []
+
+        for matrix, vector in zip(mats, to_project):
+            res.append( matrix @ vector )
+            
+        return res
+    
+    def project_psi_to_fe(self, to_project: list):
+        res = []
+        for subdomain, vector in zip(self.mdg.subdomains(return_data=False), to_project):
+            res.append( subdomain.cell_volumes * vector)
+        return res
+
+    
 
     def mass_matrix_P0(self):
         if self.mass_P0 == None:
@@ -46,7 +103,7 @@ class Matrix_Computer:
     
 
     
-    def mass_matrix_RT0_conductivity(self, tensors):
+    def mass_matrix_RT0_conductivity(self, tensors: list):
         for subdomain_data, tensor in zip(self.mdg.subdomains(return_data=True), tensors):
             sd, data = subdomain_data
             data[pp.PARAMETERS][self.key].update({"second_order_tensor": tensor})
