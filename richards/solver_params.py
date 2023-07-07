@@ -1,15 +1,14 @@
 from enum import Enum
 
 class Solver_Enum(Enum):
-    PICARD = 1,
-    NEWTON = 2,
-    MODIFIED_PICARD=3,
-    L_SCHEME = 4
+    NEWTON  = 1,
+    PICARD  = 2,
+    LSCHEME = 3
 
 
 
 class Solver_Data:
-    def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, L_Scheme_value=None, output_directory='output'):
+    def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, L_Scheme_value=None, output_directory='output', report_directory='report', report_name=None):
         self.mdg = mdg
         self.initial_solution = initial_solution
         self.output_directory = output_directory
@@ -20,6 +19,8 @@ class Solver_Data:
         self.eps_psi_rel = eps_psi_rel
         self.max_iterations_per_step = max_iterations_per_step
         self.L_Scheme_value = L_Scheme_value
+        self.report_directory = report_directory
+        self.report_name = report_name
 
         self.rhs_func_q = None
         self.rhs_func_psi = None
