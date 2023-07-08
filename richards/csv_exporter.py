@@ -1,12 +1,20 @@
 import os
 
 class Csv_Exporter:
-    def __init__(self, headers):
+    def __init__(self, *headers):
         self.data = []
-        self.headers = headers
-
-    def add_entry(self, entry):
-        self.data.append(entry)
+        self.headers = ''
+        
+        for i in range(len(headers)-1):
+            self.headers = self.headers + str(headers[i]) + ','
+        self.headers = self.headers + str(headers[-1])
+    
+    def add_entry(self, *entries):
+        final_entry = ''
+        
+        for i in range(len(entries)-1):
+            final_entry = final_entry + str(entries[i]) + ','
+        self.data.append(final_entry + str(entries[-1]))
 
     def export_file(self, export_directory, file_name):
         if not os.path.exists(export_directory):

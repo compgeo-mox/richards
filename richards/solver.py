@@ -18,12 +18,12 @@ import pygeon as pg
 
 
 class Solver:
-    def __init__(self, model_data : Model_Data, solver_data: Solver_Data):
+    def __init__(self, model_data : Model_Data, solver_data: Solver_Data, verbose=True):
         self.model_data = model_data
         self.solver_data = solver_data
+        self.verbose = verbose
 
         self.computer = Matrix_Computer(self.solver_data.mdg)
-        self.headers = 'time_instant,iteration,absolute_error_norm,relative_error_norm'
 
         for sd in self.solver_data.mdg.subdomains(return_data=False):
             self.subdomain = sd
@@ -55,14 +55,16 @@ class Solver:
         step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
         step_exporter.export( sol[-1] )
 
-        csv_exporter = Csv_Exporter(self.headers)
+        csv_exporter = Csv_Exporter('time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm')
 
         method = self.__get_method(self.solver_data.scheme)
 
         # Time Loop
         for step in range(1, self.model_data.num_steps + 1):
             instant = step * self.model_data.dt
-            print('Time ' + str(round(instant, 5)))
+            
+            if self.verbose:
+                print('Time ' + str(round(instant, 5)))
         
             sol.append( method(sol[-1][0], instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_exporter) )
             step_exporter.export(sol[-1])
@@ -94,15 +96,17 @@ class Solver:
         csv_exporters = list()
 
         for i in range(len(iterations)):
-            csv_exporters.append( Csv_Exporter(self.headers) )
-        csv_final_exporter = Csv_Exporter(self.headers)
+            csv_exporters.append( Csv_Exporter('time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm') )
+        csv_final_exporter = Csv_Exporter('time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm')
 
         # Time Loop
         for step in range(1, self.model_data.num_steps + 1):
             tmp_sol = sol[-1][0]
 
             instant = step * self.model_data.dt
-            print('Time ' + str(round(instant, 5)))
+            
+            if self.verbose:
+                print('Time ' + str(round(instant, 5)))
             
             for scheme, iteration, abs_tol, rel_tol, exporter in zip(schemes, iterations, abs_tolerances, rel_tolerances, csv_exporters):
                 print(Solver_Enum(scheme).name)
@@ -112,7 +116,8 @@ class Solver:
 
             self.solver_data.max_iterations_per_step = backup_step
             
-            print(Solver_Enum(self.solver_data.scheme).name)
+            if self.verbose:
+                print(Solver_Enum(self.solver_data.scheme).name)
             sol.append( self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter) )
             step_exporter.export(sol[-1])
 
@@ -229,13 +234,14 @@ class Solver:
             abs_err_prev = np.sqrt(np.sum(np.power(psi, 2)))
 
 
+            if self.verbose:
+                print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
+                    + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
 
-            print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
-            
 
 
-            exporter.add_entry(str(t_n_1) + ',' + str(k+1) + ',' + str(abs_err_psi) + ',' + str(abs_err_psi / abs_err_prev))
+            exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
+
 
 
             if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
@@ -311,12 +317,11 @@ class Solver:
             abs_err_psi  = np.sqrt(np.sum(np.power(current[-dof_psi:]-prev[-dof_psi:], 2)))
             abs_err_prev = np.sqrt(np.sum(np.power(prev[-dof_psi:], 2)))
 
-
-            print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
-            
-            exporter.add_entry(str(t_n_1) + ',' + str(k+1) + ',' + str(abs_err_psi) + ',' + str(abs_err_psi / abs_err_prev))
-
+            if self.verbose:
+                print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
+                    + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
+                
+            exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
 
 
             if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
@@ -390,13 +395,13 @@ class Solver:
             abs_err_prev = np.sqrt(np.sum(np.power(psi, 2)))
 
 
+            if self.verbose:
+                print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
+                    + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
+                
 
-            print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
-            
 
-
-            exporter.add_entry(str(t_n_1) + ',' + str(k+1) + ',' + str(abs_err_psi) + ',' + str(abs_err_psi / abs_err_prev))
+            exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
 
             if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
                 break
