@@ -1,7 +1,7 @@
 from enum import Enum
 
 import os
-from math import ceil, floor, log10, exp
+from math import ceil, floor, log10, exp, isnan
 import numpy as np
 import scipy.sparse as sps
 
@@ -239,6 +239,8 @@ class Solver:
                     + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
 
 
+            if isnan(abs_err_psi) or isnan(abs_err_prev):
+                break
 
             exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
 
@@ -321,6 +323,9 @@ class Solver:
                 print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
                     + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
                 
+            if isnan(abs_err_psi) or isnan(abs_err_prev):
+                break
+
             exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
 
 
@@ -400,6 +405,9 @@ class Solver:
                     + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
                 
 
+            if isnan(abs_err_psi) or isnan(abs_err_prev):
+                break
+            
 
             exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
 
