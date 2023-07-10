@@ -1,3 +1,3 @@
-import tests.richards_initial_tests.benchamark_problem.mesh_test
 import tests.richards_initial_tests.strictly_unsaturated_medium.mesh_test
 import tests.richards_initial_tests.variably_saturated_medium.mesh_test
+import tests.richards_initial_tests.benchamark_problem.mesh_test

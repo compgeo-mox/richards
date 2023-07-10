@@ -50,7 +50,7 @@ def bc_gamma_d(x, t, tolerance):
     return res
 
 
-def run_experiment(N, prefix_file_name, L_Value, report_output_directory):
+def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme_info):
     ### DOMAIN CONSTRUCTION
     domain = pp.StructuredTriangleGrid([2*N, 3*N], [2,3])
     mdg = pp.meshing.subdomains_to_mdg([domain])
@@ -98,7 +98,7 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory):
     initial_solution = np.zeros(cp.dof_q[0] + cp.dof_psi[0])
     initial_solution[-cp.dof_psi[0]:] += np.hstack(initial_pressure)
 
-    solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme, 
+    solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
                             eps_psi_rel=eps_psi_rel, max_iterations_per_step=K,
                             output_directory=output_directory, L_Scheme_value=L_Value,
@@ -116,19 +116,27 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory):
     return end - start
 
 
-def run_experiments(scheme, L_value, directory_prefix):
-    exporter = Csv_Exporter('N,time')
+def run_experiments(schemes, L_values, directory_prefixes):
+    exporters = []
+    report_output_directories = []
 
-    if directory_prefix is None:
-        report_output_directory = 'report/' + scheme.name + '_' + problem_name
-    else:
-        report_output_directory = 'report/' + directory_prefix + '_' + scheme.name + '_' + problem_name
+    for scheme, directory_prefix in zip(schemes, directory_prefixes):
+        if directory_prefix is None:
+            report_output_directories.append('report/' + problem_name + '_' + scheme.name)
+        else:
+            report_output_directories.append('report/' + problem_name + '_' + directory_prefix  + '_' + scheme.name)
+            
+        exporters.append( Csv_Exporter('N,time') )
+
 
     for N in range(10, 81, 10):
-        print('Running experiment with N=' + str(N))
-        exporter.add_entry(N, run_experiment(N, str(N) + '_' + problem_name, L_value, report_output_directory))
+        for scheme, L_value, exporter, report_output_directory in zip(schemes, L_values, exporters, report_output_directories):
+            print('Running experiment with N=' + str(N) + 'with scheme ' + scheme.name)
+            exporter.add_entry(N, run_experiment(N, str(N) + '_' + problem_name, L_value, report_output_directory, scheme))
 
-    exporter.export_file(report_output_directory, problem_name + '_' + scheme.name  + '_richards_solver.csv')
+
+    for exporter, scheme, report_output_directory in zip(exporters, schemes, report_output_directories):
+        exporter.export_file(report_output_directory, problem_name + '_' + scheme.name  + '_richards_solver.csv')
 
 
 
@@ -139,5 +147,4 @@ L_values = [3.501e-2, None, None, 4.501e-2]
 prefixes = ['1', None, None, '2']
 
 
-for scheme, L_value, prefix in zip(schemes, L_values, prefixes):
-    run_experiments(scheme, L_value, prefix)
+run_experiments(schemes, L_values, prefixes)
