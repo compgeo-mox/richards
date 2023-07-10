@@ -140,7 +140,7 @@ def run_experiments(schemes, L_values, directory_prefixes):
 
     for N in range(10, 81, 10):
         for scheme, L_value, exporter, report_output_directory in zip(schemes, L_values, exporters, report_output_directories):
-            print('Running experiment with N=' + str(N) + 'with scheme ' + scheme.name)
+            print('Running experiment with N=' + str(N) + ' with scheme ' + scheme.name)
             exporter.add_entry(N, run_experiment(N, str(N) + '_' + problem_name, L_value, report_output_directory, scheme))
 
 
