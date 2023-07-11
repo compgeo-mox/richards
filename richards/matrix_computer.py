@@ -119,7 +119,7 @@ class Matrix_Computer:
     
     def matrix_B(self):
         if self.B == None:
-            self.B = - self.mass_matrix_P0()[0] @ pg.div(self.mdg)
+            self.B = - (self.mass_matrix_P0()[0] @ pg.div(self.mdg)).tocsc()
         return self.B
     
 
@@ -205,6 +205,6 @@ class Matrix_Computer:
                 
                 idx_A += (sd.dim + 1)
 
-            res.append( sps.coo_matrix((data_A, (rows_A, cols_A))) )
+            res.append( sps.coo_matrix((data_A, (rows_A, cols_A))).tocsc() )
             
         return res

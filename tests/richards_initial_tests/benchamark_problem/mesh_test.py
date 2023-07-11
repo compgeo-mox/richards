@@ -126,17 +126,13 @@ def run_experiments(schemes, L_values, directory_prefixes):
         else:
             report_output_directories.append('report/' + problem_name + '_' + directory_prefix  + '_' + scheme.name)
             
-        exporters.append( Csv_Exporter('N,time') )
+        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time']) )
 
 
     for N in range(10, 81, 10):
         for scheme, L_value, exporter, report_output_directory in zip(schemes, L_values, exporters, report_output_directories):
             print('Running experiment with N=' + str(N) + ' with scheme ' + scheme.name)
-            exporter.add_entry(N, run_experiment(N, str(N) + '_' + problem_name, L_value, report_output_directory, scheme))
-
-
-    for exporter, scheme, report_output_directory in zip(exporters, schemes, report_output_directories):
-        exporter.export_file(report_output_directory, problem_name + '_' + scheme.name  + '_richards_solver.csv')
+            exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value, report_output_directory, scheme)])
 
 
 

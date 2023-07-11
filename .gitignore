@@ -83,7 +83,7 @@ $RECYCLE.BIN/
 # Paraview
 *.pvd
 *.vtu
-# *.csv
+*.csv
 
 # Graphics formats
 *.vrml

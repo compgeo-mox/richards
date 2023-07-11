@@ -55,7 +55,12 @@ class Solver:
         step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
         step_exporter.export( sol[-1] )
 
-        csv_exporter = Csv_Exporter('time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm')
+        entries = ['time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm']
+        if self.solver_data.report_name is not None:
+            csv_exporter = Csv_Exporter(self.solver_data.report_directory, self.solver_data.report_name + '_' + Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv', entries)
+        else:
+            csv_exporter = Csv_Exporter(self.solver_data.report_directory, Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv', entries)
+
 
         method = self.__get_method(self.solver_data.scheme)
 
@@ -71,15 +76,9 @@ class Solver:
 
         step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
 
-        if self.solver_data.report_name is not None:
-            csv_exporter.export_file(self.solver_data.report_directory, self.solver_data.report_name + '_' + Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv')
-        else:
-            csv_exporter.export_file(self.solver_data.report_directory, Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv')
-
         
         if max_iterations_per_step_override is not None:
             self.solver_data.max_iterations_per_step = backup_step
-
 
 
     def multistage_solver(self, schemes: list, iterations: list, abs_tolerances: list, rel_tolerances: list):
@@ -94,10 +93,29 @@ class Solver:
         step_exporter.export( sol[-1] )
 
         csv_exporters = list()
+        
+        name_schemes = []
+        for scheme in schemes:
+            name_schemes.append( scheme.name )
+        name_schemes.append(self.solver_data.scheme.name)
 
+        if self.solver_data.report_name is not None:
+            base_path = os.path.join(self.solver_data.report_directory, self.solver_data.report_name + '_' + '_'.join(name_schemes))
+        else:
+            base_path = os.path.join(self.solver_data.report_directory, '_'.join(name_schemes))
+
+        entries = ['time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm']
         for i in range(len(iterations)):
-            csv_exporters.append( Csv_Exporter('time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm') )
-        csv_final_exporter = Csv_Exporter('time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm')
+            if self.solver_data.report_name is not None:
+                csv_exporters.append( Csv_Exporter(base_path, self.solver_data.report_name + '_' + str(i) + '_' + name_schemes[i] + '_richards_solver.csv', entries) )
+            else:
+                csv_exporters.append( Csv_Exporter(base_path, str(i) + '_' + name_schemes[i] + '_richards_solver.csv', entries) )
+
+        if self.solver_data.report_name is not None:
+            csv_final_exporter = Csv_Exporter(base_path, self.solver_data.report_name + '_' + str(len(iterations)) + '_' + self.solver_data.scheme.name + '_richards_solver.csv', entries)
+        else:
+            csv_final_exporter = Csv_Exporter(base_path, str(len(iterations)) + '_' + self.solver_data.scheme.name + '_richards_solver.csv', entries)
+
 
         # Time Loop
         for step in range(1, self.model_data.num_steps + 1):
@@ -122,35 +140,6 @@ class Solver:
             step_exporter.export(sol[-1])
 
         step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
-
-        name_schemes = []
-        for i in range(len(schemes)):
-            scheme = schemes[i]
-            exporter = csv_exporters[i]
-
-            name_schemes.append(Solver_Enum(scheme).name)
-
-        name_schemes.append(Solver_Enum(self.solver_data.scheme).name  )
-        
-        if self.solver_data.report_name is not None:
-            base_path = os.path.join(self.solver_data.report_directory, self.solver_data.report_name + '_' + '_'.join(name_schemes))
-        else:
-            base_path = os.path.join(self.solver_data.report_directory, '_'.join(name_schemes))
-
-        csv_exporters.append(csv_final_exporter)
-
-        for csv_exporter, scheme_name in zip(csv_exporters, name_schemes):
-            if self.solver_data.report_name is not None:
-                csv_exporter.export_file(base_path, self.solver_data.report_name + '_' + str(i) + '_' + scheme_name + '_richards_solver.csv')
-            else:
-                csv_exporter.export_file(base_path, str(i) + '_' + scheme_name + '_richards_solver.csv')
-            i = i + 1
-
-        
-        if self.solver_data.report_name is not None:
-            csv_final_exporter.export_file(self.solver_data.report_directory, self.solver_data.report_name + '_' + '_'.join(name_schemes) + '_richards_solver.csv')
-        else:
-            csv_final_exporter.export_file(self.solver_data.report_directory, '_'.join(name_schemes) + '_richards_solver.csv')
 
 
     def __prepare_time_rhs(self, t):
@@ -198,8 +187,8 @@ class Solver:
             psi = prev[-dof_psi:]
 
             N = None
-            N = Mass_psi @ np.diag(np.ones_like(psi) * self.solver_data.L_Scheme_value)
-
+            N = Mass_psi @ sps.diags(np.ones_like(psi) * self.solver_data.L_Scheme_value, format="csc")
+            
             rhs = None
             rhs = fixed_rhs.copy()
 
@@ -242,7 +231,7 @@ class Solver:
             if isnan(abs_err_psi) or isnan(abs_err_prev):
                 break
 
-            exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
+            exporter.add_entry([t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev])
 
 
 
@@ -294,7 +283,7 @@ class Solver:
             # Theta^{n+1}_k
             rhs[-dof_psi:] -= Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ psi)])[0]
             
-            D = Mass_psi @ np.diag(self.model_data.theta(proj_psi @ psi, 1))
+            D = Mass_psi @ sps.diags(self.model_data.theta(proj_psi @ psi, 1), format="csc")
             rhs[-dof_psi:] += D @ psi
 
             # construct the local matrices
@@ -326,7 +315,7 @@ class Solver:
             if isnan(abs_err_psi) or isnan(abs_err_prev):
                 break
 
-            exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
+            exporter.add_entry([t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev])
 
 
             if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
@@ -364,7 +353,8 @@ class Solver:
             psi = prev[-dof_psi:]
 
             N = None
-            N = Mass_psi @ np.diag(self.model_data.theta(proj_psi @ psi, 1))
+            
+            N = Mass_psi @ sps.diags(self.model_data.theta(proj_psi @ psi, 1), format="csc")
 
             rhs = None
             rhs = fixed_rhs.copy()
@@ -409,7 +399,7 @@ class Solver:
                 break
             
 
-            exporter.add_entry(t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev)
+            exporter.add_entry([t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev])
 
             if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
                 break
