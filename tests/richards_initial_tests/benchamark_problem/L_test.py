@@ -48,7 +48,7 @@ def bc_gamma_d(x, t, tolerance):
     return res
 
 
-def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme_info):
+def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme_info, int_model_data):
     ### DOMAIN CONSTRUCTION
     domain = pp.StructuredTriangleGrid([2*N, 3*N], [2,3])
     mdg = pp.meshing.subdomains_to_mdg([domain])
@@ -107,14 +107,14 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
 
     ### PREPARE SOLVER
     start = time.time()
-    solver = Solver(model_data=model_data, solver_data=solver_data)
+    solver = Solver(model_data=int_model_data, solver_data=solver_data)
     solver.solve()
     end = time.time()
 
     return end - start
 
 
-def run_experiments(schemes, L_values, directory_prefixes):
+def run_experiments(schemes, L_values, directory_prefixes, Ns, int_model_data):
     exporters = []
     report_output_directories = []
 
@@ -127,16 +127,33 @@ def run_experiments(schemes, L_values, directory_prefixes):
         exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time']) )
 
 
-    for N in range(20, 61, 20):
+    for N in Ns:
         for scheme, L_value, exporter, report_output_directory in zip(schemes, L_values, exporters, report_output_directories):
             print('Running experiment with N=' + str(N) + ' with scheme ' + scheme.name + ' and L=' + str(L_value * 0.1e-2))
-            exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, scheme)])
+            exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, scheme, int_model_data)])
 
 
 
 schemes = []
 
-for steps in range(9, 109, 10):
+def first():
+    print('Problem name: ' + problem_name + ', num_steps=' + str(9))
+    int_model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=9)
+
+    for i in range(1, 101):
+        schemes.append(Solver_Enum.LSCHEME)
+            
+    L_values = range(22, 103, 4)
+    prefixes = []
+
+    for pref in range(21, 103, 4):
+        prefixes.append(str(pref) + '_steps_' + str(9))
+
+    run_experiments(schemes, L_values, prefixes, [60], int_model_data)
+
+first()
+
+for steps in range(19, 109, 10):
     print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
 
@@ -150,4 +167,4 @@ for steps in range(9, 109, 10):
         prefixes.append(str(pref) + '_steps_' + str(steps))
 
 
-    run_experiments(schemes, L_values, prefixes)
+    run_experiments(schemes, L_values, prefixes, range(20, 61, 20), model_data)
