@@ -137,7 +137,7 @@ def run_experiments(schemes, L_values, directory_prefixes, Ns, int_model_data):
 schemes = []
 
 def first():
-    print('Problem name: ' + problem_name + ', num_steps=' + str(9))
+    print('Problem name: ' + problem_name + ', num_steps=' + str(19))
     int_model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=9)
 
     for i in range(1, 101):
@@ -147,13 +147,13 @@ def first():
     prefixes = []
 
     for pref in range(21, 103, 4):
-        prefixes.append(str(pref) + '_steps_' + str(9))
+        prefixes.append(str(pref) + '_steps_' + str(19))
 
     run_experiments(schemes, L_values, prefixes, [60], int_model_data)
 
 first()
 
-for steps in range(19, 109, 10):
+for steps in range(29, 109, 10):
     print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
 
