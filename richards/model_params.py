@@ -4,7 +4,7 @@ import sympy as sp
 import numpy as np
 
 class Model_Data:
-    def __init__(self, theta_r, theta_s, alpha, n, K_s, T, num_steps) -> None:
+    def __init__(self, theta_r, theta_s, alpha, n, K_s, T, num_steps, richards_psi_starting_dof = 0, richards_q_starting_dof = 0) -> None:
         self.theta_r = theta_r
         self.theta_s = theta_s
 
@@ -25,6 +25,9 @@ class Model_Data:
         self.derivative_theta = list()
         self.derivative_K = list()
         self.derivative_K_inv = list()
+
+        self.richards_psi_starting_dof = richards_psi_starting_dof
+        self.richards_q_starting_dof = richards_q_starting_dof
         
         self.psi_var = sp.Symbol('psi', negative=True)
         self.theta_expression = self.theta_r + (self.theta_s - self.theta_r) / (1 + (-self.alpha * self.psi_var) ** self.n) ** self.m
@@ -53,7 +56,9 @@ class Model_Data:
 
     
     def __internal_theta(self, psi, order):
-        mask = psi < self.h_s
+        mask = np.zeros_like(psi, dtype=bool)
+        mask[self.richards_psi_starting_dof:]=True
+        mask = np.logical_and(psi < self.h_s, mask)
 
         if order == 0:
             res = np.ones_like(psi) * self.theta_s
@@ -66,7 +71,9 @@ class Model_Data:
     
     
     def __internal_hydraulic(self, psi, order):
-        mask = psi < self.h_s
+        mask = np.zeros_like(psi, dtype=bool)
+        mask[self.richards_psi_starting_dof:]=True
+        mask = np.logical_and(psi < self.h_s, mask)
 
         if order == 0:
             res = np.ones_like(psi) * self.K_s
@@ -79,7 +86,9 @@ class Model_Data:
     
     
     def __internal_inv_hydraulic(self, psi, order):
-        mask = psi < self.h_s
+        mask = np.zeros_like(psi, dtype=bool)
+        mask[self.richards_psi_starting_dof:]=True
+        mask = np.logical_and(psi < self.h_s, mask)
 
         if order == 0:
             res = np.ones_like(psi) / self.K_s
