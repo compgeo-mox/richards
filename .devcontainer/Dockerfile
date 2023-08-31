@@ -15,7 +15,7 @@ ENV TZ=Europe/Rome
 
 WORKDIR ${MY_DIR}
 
-RUN apt update && apt install python3-dev python3-pip git gmsh metis -y
+RUN apt update && apt install python3-dev python3-pip gmsh git metis curl -y
 
 # Python requirements
 RUN python3 -m pip install cython numba shapely ipython ipykernel jupyterlab
@@ -39,6 +39,7 @@ WORKDIR ${MY_DIR}/pygeon
 RUN python3 -m pip install .
 
 WORKDIR ${MY_DIR}
-COPY src src
+COPY richards richards
+COPY tests tests
 
 CMD bash
