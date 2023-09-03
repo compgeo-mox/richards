@@ -110,7 +110,8 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
                             eps_psi_rel=eps_psi_rel, max_iterations_per_step=K,
                             output_directory=output_directory, L_Scheme_value=L_Value,
-                            report_name=prefix_file_name, report_directory=report_output_directory)
+                            report_name=prefix_file_name, report_directory=report_output_directory,
+                            step_output_allowed=False)
 
     solver_data.set_rhs_vector_q(lambda t: np.hstack(list(cond(t) for cond in bc_value)))
     solver_data.set_rhs_function_q(g_func)

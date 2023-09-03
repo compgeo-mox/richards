@@ -154,62 +154,27 @@ class Solver:
 
 
 
-    def _L_scheme(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
-        proj_psi = self.computer.compute_proj_psi_mat()[0]
+
+
+    def _generic_step_solver(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, method_prepare, method_step):
         dof_psi = self.computer.dof_psi[0]
-        dof_q = self.computer.dof_q[0]
-        dt = self.model_data.dt
+
+        preparation = method_prepare(sol_n, t_n_1)
 
         prev = sol_n.copy()
 
-        Mass_psi = self.computer.mass_matrix_P0()[0]
-        B = self.computer.matrix_B()
-
-        # Assemble the right-hand side
-        fixed_rhs = self.__prepare_time_rhs(t_n_1)
-
-        # Theta^n
-        fixed_rhs[-dof_psi:] += Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0] / dt
-
-
-        save_debug = Step_Exporter(self.solver_data.mdg, "L_SCHEME_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
-        save_debug.export( [prev] )
-
+        if self.solver_data.step_output_allowed:
+            save_debug = Step_Exporter(self.solver_data.mdg, "L_SCHEME_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
+            save_debug.export( [prev] )
+        
         for k in range(self.solver_data.max_iterations_per_step):
             psi = prev[-dof_psi:]
 
-            N = None
-            N = Mass_psi @ sps.diags(np.ones_like(psi) * self.solver_data.L_Scheme_value, format="csc")
-            
-            rhs = None
-            rhs = fixed_rhs.copy()
-
-            # Theta^{n+1}_k
-            rhs[-dof_psi:] -= Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ psi)])[0] / dt
-
-            # Derivative Thetha^{n+1}_k
-            rhs[-dof_psi:] += N @ psi / dt
-
-
-            # Construct the local matrices
-            M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(proj_psi @ psi))])
-            
-            spp = sps.bmat([[M_k_n_1,    B.T], 
-                            [-B,      N / dt]], format="csc")
-
-            
-
-            # Solve the problem
-            ls = None
-            ls = pg.LinearSystem(spp, rhs)
-            ls.flag_ess_bc(np.hstack(self.solver_data.bc_essential(t_n_1)), np.zeros(dof_q + dof_psi))
-        
             current = None
-            current = ls.solve()
+            current = method_step(preparation, k, prev)
 
-
-            save_debug.export( [current])
-
+            if self.solver_data.step_output_allowed:
+                save_debug.export( [current] )
 
             abs_err_psi  = np.sqrt(np.sum(np.power(current[-dof_psi:] - psi, 2)))
             abs_err_prev = np.sqrt(np.sum(np.power(psi, 2)))
@@ -226,110 +191,138 @@ class Solver:
             exporter.add_entry([t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev])
 
 
-
             if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
                 break
             else:
                 prev = None
                 prev = current.copy()
-                
+
+
         print('')
         return [current]
 
 
 
-    def _newton(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
+
+
+    def _L_scheme(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._L_scheme_preparation, self._L_scheme_method_step)
+    
+    def _L_scheme_preparation(self, sol_n, t_n_1):
         proj_psi = self.computer.compute_proj_psi_mat()[0]
         dof_psi = self.computer.dof_psi[0]
-        dof_q = self.computer.dof_q[0]
         dt = self.model_data.dt
 
-        prev = sol_n.copy()
+        # Assemble the right-hand side
+        fixed_rhs = self.__prepare_time_rhs(t_n_1)
 
-        Mass_psi = self.computer.mass_matrix_P0()[0]
-        B = self.computer.matrix_B()
+        # Theta^n
+        fixed_rhs[-dof_psi:] += self.computer.mass_matrix_P0()[0] @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0] / dt
 
+        return { 'mass_psi': self.computer.mass_matrix_P0()[0], 'B': self.computer.matrix_B(), 'fixed_rhs': fixed_rhs.copy(), 
+                'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'proj_psi': proj_psi, 'dt': dt, 't_n_1': t_n_1}
+
+    def _L_scheme_method_step(self, preparation, k, prev):
+        dof_psi = preparation['dof_psi']
+
+        dt = preparation['dt']
+        psi = prev[-dof_psi:]
+
+        N = None
+        N = preparation['mass_psi'] @ sps.diags(np.ones_like(psi) * self.solver_data.L_Scheme_value, format="csc")
+            
+        rhs = None
+        rhs = preparation['fixed_rhs'].copy()
+
+        # Theta^{n+1}_k
+        rhs[-dof_psi:] -= preparation['mass_psi'] @ self.computer.project_psi_to_fe([self.model_data.theta(preparation['proj_psi'] @ psi)])[0] / dt
+
+        # Derivative Thetha^{n+1}_k
+        rhs[-dof_psi:] += N @ psi / dt
+
+
+        # Construct the local matrices
+        M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(preparation['proj_psi'] @ psi))])
+            
+        spp = sps.bmat([[M_k_n_1,    preparation['B'].T], 
+                        [-preparation['B'],      N / dt]], format="csc")
+
+            
+
+        # Solve the problem
+        ls = pg.LinearSystem(spp, rhs)
+        ls.flag_ess_bc(np.hstack(self.solver_data.bc_essential(preparation['t_n_1'])), np.zeros(preparation['dof_q'] + dof_psi))
+        
+        return ls.solve()
+
+
+
+
+
+    def _newton(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step)
+
+    def _newton_preparation(self, sol_n, t_n_1):
+        proj_psi = self.computer.compute_proj_psi_mat()[0]
+        dof_psi = self.computer.dof_psi[0]
 
         # assemble the right-hand side
         fixed_rhs = self.__prepare_time_rhs(t_n_1)
 
         # Theta^n
-        fixed_rhs[-dof_psi:] += Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0]
+        fixed_rhs[-dof_psi:] += self.computer.mass_matrix_P0()[0] @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0]
 
-        save_debug = Step_Exporter(self.solver_data.mdg, "NEWTON_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
-        save_debug.export( [prev] )
+        return {'proj_psi': proj_psi, 'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'dt': self.model_data.dt,
+                'mass_psi': self.computer.mass_matrix_P0()[0], 'B': self.computer.matrix_B(), 'fixed_rhs': fixed_rhs.copy()}
+    
+    def _newton_method_step(self, preparation, k, prev):
+        dof_psi = preparation['dof_psi']
+        dof_q = preparation['dof_q']
 
-        for k in range(self.solver_data.max_iterations_per_step):
-            psi = prev[-dof_psi:]
-            q   = prev[:dof_q]
+        psi = prev[-dof_psi:]
+        q   = prev[:dof_q]
 
-            rhs = None
-            rhs = fixed_rhs.copy()
+        rhs = preparation['fixed_rhs'].copy()
 
-            C = self.computer.C(self.model_data, proj_psi @ psi, q)[0]
-            B = self.computer.matrix_B()
+        C = self.computer.C(self.model_data, preparation['proj_psi'] @ psi, q)[0]
+        B = self.computer.matrix_B()
 
-            rhs[:dof_q]    += C @ psi
+        rhs[:dof_q]    += C @ psi
 
 
-            # Theta^{n+1}_k
-            rhs[-dof_psi:] -= Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ psi)])[0]
+        # Theta^{n+1}_k
+        rhs[-dof_psi:] -= preparation['mass_psi'] @ self.computer.project_psi_to_fe([self.model_data.theta(preparation['proj_psi'] @ psi)])[0]
             
-            D = Mass_psi @ sps.diags(self.model_data.theta(proj_psi @ psi, 1), format="csc")
-            rhs[-dof_psi:] += D @ psi
+        D = preparation['mass_psi'] @ sps.diags(self.model_data.theta(preparation['proj_psi'] @ psi, 1), format="csc")
+        rhs[-dof_psi:] += D @ psi
 
-            # construct the local matrices
-            M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(proj_psi @ psi))])
+        # construct the local matrices
+        M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(preparation['proj_psi'] @ psi))])
             
-            spp = sps.bmat([[M_k_n_1, (B.T + C)], 
-                            [-dt * B,         D]], format="csc")
+        spp = sps.bmat([[M_k_n_1, (B.T + C)], 
+                        [-preparation['dt'] * B,         D]], format="csc")
             
-
             
-            # solve the problem
-            ls = None
-            ls = pg.LinearSystem(spp, rhs)
-            ls.flag_ess_bc(np.hstack(self.solver_data.bc_essential(t_n_1)), np.zeros(dof_q + dof_psi))
+        # solve the problem
+        ls = pg.LinearSystem(spp, rhs)
+        ls.flag_ess_bc(np.hstack(self.solver_data.bc_essential(preparation['t_n_1'])), np.zeros(dof_q + dof_psi))
         
-            current = None
-            current = ls.solve()
-
-            save_debug.export( [current] )
+        return ls.solve()
 
 
-            abs_err_psi  = np.sqrt(np.sum(np.power(current[-dof_psi:]-prev[-dof_psi:], 2)))
-            abs_err_prev = np.sqrt(np.sum(np.power(prev[-dof_psi:], 2)))
 
-            if self.verbose:
-                print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                    + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
-                
-            if isnan(abs_err_psi) or isnan(abs_err_prev):
-                break
-
-            exporter.add_entry([t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev])
-
-
-            if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
-                break
-            else:
-                prev = current
-                
-        print('')
-        return [current]
 
 
 
     def _modified_picard(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step)
+
+    def _modified_picard_preparation(self, sol_n, t_n_1):
         proj_psi = self.computer.compute_proj_psi_mat()[0]
         dof_psi = self.computer.dof_psi[0]
-        dof_q = self.computer.dof_q[0]
         dt = self.model_data.dt
 
-        prev = sol_n.copy()
-
         Mass_psi = self.computer.mass_matrix_P0()[0]
-        B = self.computer.matrix_B()
 
         # Assemble the right-hand side
         fixed_rhs = self.__prepare_time_rhs(t_n_1)
@@ -337,67 +330,37 @@ class Solver:
         # Theta^n
         fixed_rhs[-dof_psi:] += Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0] / dt
 
+        return {'proj_psi': proj_psi, 'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'dt': dt,
+                'mass_psi': self.computer.mass_matrix_P0()[0], 'B': self.computer.matrix_B(), 'fixed_rhs': fixed_rhs.copy()}
+    
+    def _modified_picard_method_step(self, preparation, k, prev):
+        dof_psi = preparation['dof_psi']
+        dof_q = preparation['dof_q']
+        dt = preparation['dt']
 
-        save_debug = Step_Exporter(self.solver_data.mdg, "MODIFIED_PICARD_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
-        save_debug.export( [prev] )
+        psi = prev[-dof_psi:]
 
-        for k in range(self.solver_data.max_iterations_per_step):
-            psi = prev[-dof_psi:]
+        N = preparation['mass_psi'] @ sps.diags(self.model_data.theta(preparation['proj_psi'] @ psi, 1), format="csc")
 
-            N = None
+        rhs = preparation['fixed_rhs'].copy()
+
+        # Theta^{n+1}_k
+        rhs[-dof_psi:] -= preparation['mass_psi'] @ self.computer.project_psi_to_fe([self.model_data.theta(preparation['proj_psi'] @ psi)])[0] / dt
+
+        # Derivative Thetha^{n+1}_k
+        rhs[-dof_psi:] += N @ psi / dt
+
+
+        # Construct the local matrices
+        M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(preparation['proj_psi'] @ psi))])
             
-            N = Mass_psi @ sps.diags(self.model_data.theta(proj_psi @ psi, 1), format="csc")
-
-            rhs = None
-            rhs = fixed_rhs.copy()
-
-            # Theta^{n+1}_k
-            rhs[-dof_psi:] -= Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ psi)])[0] / dt
-
-            # Derivative Thetha^{n+1}_k
-            rhs[-dof_psi:] += N @ psi / dt
-
-
-            # Construct the local matrices
-            M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(proj_psi @ psi))])
-            
-            spp = sps.bmat([[M_k_n_1,    B.T], 
-                            [-B,      N / dt]], format="csc")
+        spp = sps.bmat([[M_k_n_1,    preparation['B'].T], 
+                        [-preparation['B'],      N / dt]], format="csc")
 
             
 
-            # Solve the problem
-            ls = None
-            ls = pg.LinearSystem(spp, rhs)
-            ls.flag_ess_bc(np.hstack(self.solver_data.bc_essential(t_n_1)), np.zeros(dof_q + dof_psi))
+        # Solve the problem
+        ls = pg.LinearSystem(spp, rhs)
+        ls.flag_ess_bc(np.hstack(self.solver_data.bc_essential(preparation['t_n_1'])), np.zeros(dof_q + dof_psi))
         
-            current = None
-            current = ls.solve()
-
-
-            save_debug.export( [current])
-
-
-            abs_err_psi  = np.sqrt(np.sum(np.power(current[-dof_psi:] - psi, 2)))
-            abs_err_prev = np.sqrt(np.sum(np.power(psi, 2)))
-
-
-            if self.verbose:
-                print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                    + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
-                
-
-            if isnan(abs_err_psi) or isnan(abs_err_prev):
-                break
-            
-
-            exporter.add_entry([t_n_1, k+1, abs_err_psi, abs_err_psi / abs_err_prev])
-
-            if abs_err_psi < abs_tol + rel_tol * abs_err_prev:
-                break
-            else:
-                prev = None
-                prev = current.copy()
-                
-        print('')
-        return [current]
+        return ls.solve()

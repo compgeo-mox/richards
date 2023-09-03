@@ -8,7 +8,8 @@ class Solver_Enum(Enum):
 
 # Simple class used to store the solver related parameters and to thenerate the rhs of the problem
 class Solver_Data:
-    def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, L_Scheme_value=None, output_directory='output', report_directory='report', report_name=None):
+    def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, 
+                 L_Scheme_value=None, output_directory='output', report_directory='report', report_name=None, step_output_allowed=True):
         self.mdg = mdg
         self.initial_solution = initial_solution
         self.output_directory = output_directory
@@ -21,6 +22,7 @@ class Solver_Data:
         self.L_Scheme_value = L_Scheme_value
         self.report_directory = report_directory
         self.report_name = report_name
+        self.step_output_allowed = step_output_allowed
 
         self.rhs_func_q = None
         self.rhs_func_psi = None
