@@ -3,7 +3,7 @@ import os
 
 
 class Csv_Exporter:
-    def __init__(self, export_directory, file_name, headers):
+    def __init__(self, export_directory, file_name, headers, overwrite_existing=True):
         if not os.path.exists(export_directory):
             os.makedirs(export_directory)
 
@@ -13,11 +13,12 @@ class Csv_Exporter:
 
         self.path = os.path.join(export_directory, file_name)
         
-        with open(self.path, 'w') as f:
-            for i in range(len(headers)-1):
-                f.write(str(headers[i]) + ',')
-            f.write(str(headers[-1]) + '\n')
-    
+        if overwrite_existing or not os.path.exists(self.path):
+            with open(self.path, 'w') as f:
+                for i in range(len(headers)-1):
+                    f.write(str(headers[i]) + ',')
+                f.write(str(headers[-1]) + '\n')
+        
     def add_entry(self, entries):
         with open(self.path, 'a') as f:
             for i in range(len(entries)-1):

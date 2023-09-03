@@ -115,52 +115,30 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
     return end - start
 
 
-def run_experiments(schemes, L_values, directory_prefixes, Ns, int_model_data):
+def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
     exporters = []
     report_output_directories = []
 
-    for scheme, directory_prefix in zip(schemes, directory_prefixes):
+    for directory_prefix in directory_prefixes:
         if directory_prefix is None:
-            report_output_directories.append('report/' + problem_name + '_' + scheme.name)
+            report_output_directories.append('report/' + problem_name + '_LSCHEME')
         else:
-            report_output_directories.append('report/' + problem_name + '_' + str(directory_prefix)  + '_' + scheme.name)
+            report_output_directories.append('report/' + problem_name + '_' + str(directory_prefix)  + '_LSCHEME')
             
-        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time']) )
+        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_LSCHEME_richards_solver.csv', ['N', 'time'], overwrite_existing=False) )
 
 
     for N in Ns:
-        for scheme, L_value, exporter, report_output_directory in zip(schemes, L_values, exporters, report_output_directories):
-            print('Running experiment with N=' + str(N) + ' with scheme ' + scheme.name + ' and L=' + str(L_value * 0.1e-2))
-            exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, scheme, int_model_data)])
+        for L_value, exporter, report_output_directory in zip(L_values, exporters, report_output_directories):
+            print('Running experiment with N=' + str(N) + ' with scheme LSCHEME and L=' + str(L_value * 0.1e-2))
+            exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, Solver_Enum.LSCHEME, int_model_data)])
 
 
 
-schemes = []
-
-def first():
-    print('Problem name: ' + problem_name + ', num_steps=' + str(19))
-    int_model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=19)
-
-    for i in range(1, 101):
-        schemes.append(Solver_Enum.LSCHEME)
-            
-    L_values = range(22, 103, 4)
-    prefixes = []
-
-    for pref in range(21, 103, 4):
-        prefixes.append(str(pref) + '_steps_' + str(19))
-
-    run_experiments(schemes, L_values, prefixes, [60], int_model_data)
-
-first()
-
-for steps in range(29, 109, 10):
+for steps in range(9, 109, 10):
     print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
 
-    for i in range(1, 101):
-        schemes.append(Solver_Enum.LSCHEME)
-        
     L_values = range(22, 103, 4)
     prefixes = []
 
@@ -168,4 +146,4 @@ for steps in range(29, 109, 10):
         prefixes.append(str(pref) + '_steps_' + str(steps))
 
 
-    run_experiments(schemes, L_values, prefixes, range(20, 61, 20), model_data)
+    run_experiments(L_values, prefixes, range(20, 61, 20), model_data)

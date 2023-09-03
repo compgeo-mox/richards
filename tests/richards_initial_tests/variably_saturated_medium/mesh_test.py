@@ -135,7 +135,7 @@ def run_experiments(schemes, L_values, directory_prefixes):
         else:
             report_output_directories.append('report/' + problem_name + '_' + directory_prefix  + '_' + scheme.name)
             
-        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time']) )
+        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time'], overwrite_existing=False) )
 
 
     for N in range(10, 81, 10):

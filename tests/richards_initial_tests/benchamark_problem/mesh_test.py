@@ -65,30 +65,29 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
     RT0 = pg.RT0(key)
     P0  = pg.PwConstants(key)
 
-    for subdomain, data in mdg.subdomains(return_data=True):
-        initial_pressure.append(P0.interpolate(subdomain, initial_pressure_func))
+    subdomain, data = mdg.subdomains(return_data=True)[0]
+    initial_pressure.append(P0.interpolate(subdomain, initial_pressure_func))
             
-        # with the following steps we identify the portions of the boundary
-        # to impose the boundary conditions
-        boundary_faces_indexes = subdomain.get_boundary_faces()
+    # with the following steps we identify the portions of the boundary to impose the boundary conditions
+    boundary_faces_indexes = subdomain.get_boundary_faces()
 
-        gamma_d1 = np.logical_and(subdomain.face_centers[0, :] > 0-domain_tolerance, np.logical_and(subdomain.face_centers[0, :] < 1+domain_tolerance, subdomain.face_centers[1, :] > 3-domain_tolerance))
-        gamma_d2 = np.logical_and(subdomain.face_centers[0, :] > 2-domain_tolerance, np.logical_and(subdomain.face_centers[1, :] > 0-domain_tolerance, subdomain.face_centers[1, :] < 1+domain_tolerance))
+    gamma_d1 = np.logical_and(subdomain.face_centers[0, :] > 0-domain_tolerance, np.logical_and(subdomain.face_centers[0, :] < 1+domain_tolerance, subdomain.face_centers[1, :] > 3-domain_tolerance))
+    gamma_d2 = np.logical_and(subdomain.face_centers[0, :] > 2-domain_tolerance, np.logical_and(subdomain.face_centers[1, :] > 0-domain_tolerance, subdomain.face_centers[1, :] < 1+domain_tolerance))
 
-        gamma_d  = np.logical_or(gamma_d1, gamma_d2)
+    gamma_d  = np.logical_or(gamma_d1, gamma_d2)
         
-        gamma_n  = gamma_d.copy()
-        gamma_n[boundary_faces_indexes] = np.logical_not(gamma_n[boundary_faces_indexes])
+    gamma_n  = gamma_d.copy()
+    gamma_n[boundary_faces_indexes] = np.logical_not(gamma_n[boundary_faces_indexes])
         
 
-        pp.initialize_data(subdomain, data, key, {
-            "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
-        })
+    pp.initialize_data(subdomain, data, key, {
+        "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
+    })
 
-        bc_value.append(lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d))
+    bc_value.append(lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d))
 
-        essential_pressure_dofs = np.zeros(P0.ndof(subdomain), dtype=bool)
-        bc_essential.append(np.hstack((gamma_n, essential_pressure_dofs)))
+    essential_pressure_dofs = np.zeros(P0.ndof(subdomain), dtype=bool)
+    bc_essential.append(np.hstack((gamma_n, essential_pressure_dofs)))
 
     if os.path.exists(output_directory):
         shutil.rmtree(output_directory)
@@ -126,7 +125,7 @@ def run_experiments(schemes, L_values, directory_prefixes):
         else:
             report_output_directories.append('report/' + problem_name + '_' + directory_prefix  + '_' + scheme.name)
             
-        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time']) )
+        exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_' + scheme.name  + '_richards_solver.csv', ['N', 'time'], overwrite_existing=False) )
 
 
     for N in range(10, 81, 10):
