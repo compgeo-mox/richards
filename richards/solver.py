@@ -54,9 +54,13 @@ class Solver:
             self.solver_data.max_iterations_per_step = max_iterations_per_step_override
 
 
-        sol = [[self.solver_data.initial_solution]]
-        step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
-        step_exporter.export( sol[-1] )
+
+        if self.solver_data.step_output_allowed:
+            step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
+            step_exporter.export( sol[-1] )
+            sol = [[self.solver_data.initial_solution]]
+        else:
+            sol = self.solver_data.initial_solution
 
         csv_exporter = Csv_Exporter(self.solver_data.report_directory, 
                                     self.__exporter_name(Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv'), 
@@ -72,10 +76,14 @@ class Solver:
             if self.verbose:
                 print('Time ' + str(round(instant, 5)))
         
-            sol.append( method(sol[-1][0], instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_exporter) )
-            step_exporter.export(sol[-1])
+            if self.solver_data.step_output_allowed:
+                sol.append( method(sol[-1][0], instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_exporter) )
+                step_exporter.export(sol[-1])
+            else:
+                sol = method(sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_exporter)[0]
 
-        step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
+        if self.solver_data.step_output_allowed:    
+            step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
 
         
         if max_iterations_per_step_override is not None:
@@ -89,9 +97,12 @@ class Solver:
         
         backup_step = self.solver_data.max_iterations_per_step
 
-        sol = [[self.solver_data.initial_solution]]
-        step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
-        step_exporter.export( sol[-1] )
+        if self.solver_data.step_output_allowed:
+            step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
+            step_exporter.export( sol[-1] )
+            sol = [[self.solver_data.initial_solution]]
+        else:
+            sol = self.solver_data.initial_solution
 
         csv_exporters = list()
         
@@ -111,7 +122,10 @@ class Solver:
 
         # Time Loop
         for step in range(1, self.model_data.num_steps + 1):
-            tmp_sol = sol[-1][0]
+            if self.solver_data.step_output_allowed:
+                tmp_sol = sol[-1][0]
+            else:
+                tmp_sol = sol
 
             instant = step * self.model_data.dt
             
@@ -128,10 +142,15 @@ class Solver:
             
             if self.verbose:
                 print(Solver_Enum(self.solver_data.scheme).name)
-            sol.append( self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter) )
-            step_exporter.export(sol[-1])
 
-        step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
+            if self.solver_data.step_output_allowed:
+                sol.append( self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter) )
+                step_exporter.export(sol[-1])
+            else:
+                sol = self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter)[0]
+
+        if self.solver_data.step_output_allowed:
+            step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
 
 
     def __prepare_time_rhs(self, t):
@@ -272,7 +291,7 @@ class Solver:
         # Theta^n
         fixed_rhs[-dof_psi:] += self.computer.mass_matrix_P0()[0] @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0]
 
-        return {'proj_psi': proj_psi, 'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'dt': self.model_data.dt,
+        return {'proj_psi': proj_psi, 'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'dt': self.model_data.dt, 't_n_1': t_n_1,
                 'mass_psi': self.computer.mass_matrix_P0()[0], 'B': self.computer.matrix_B(), 'fixed_rhs': fixed_rhs.copy()}
     
     def _newton_method_step(self, preparation, k, prev):
