@@ -29,7 +29,6 @@ class Solver:
             self.subdomain = sd
 
 
-
     def __get_method(self, scheme):
         if scheme == Solver_Enum.PICARD:
             return self._modified_picard
@@ -43,6 +42,10 @@ class Solver:
         else:
             return None
 
+    def __exporter_name(self, suffix):
+        if self.solver_data.report_name is not None:
+            return self.solver_data.report_name + '_' + suffix
+        return suffix
 
 
     def solve(self, max_iterations_per_step_override = None):
@@ -55,11 +58,9 @@ class Solver:
         step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
         step_exporter.export( sol[-1] )
 
-        entries = ['time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm']
-        if self.solver_data.report_name is not None:
-            csv_exporter = Csv_Exporter(self.solver_data.report_directory, self.solver_data.report_name + '_' + Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv', entries)
-        else:
-            csv_exporter = Csv_Exporter(self.solver_data.report_directory, Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv', entries)
+        csv_exporter = Csv_Exporter(self.solver_data.report_directory, 
+                                    self.__exporter_name(Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv'), 
+                                    ['time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm'])
 
 
         method = self.__get_method(self.solver_data.scheme)
@@ -99,22 +100,13 @@ class Solver:
             name_schemes.append( scheme.name )
         name_schemes.append(self.solver_data.scheme.name)
 
-        if self.solver_data.report_name is not None:
-            base_path = os.path.join(self.solver_data.report_directory, self.solver_data.report_name + '_' + '_'.join(name_schemes))
-        else:
-            base_path = os.path.join(self.solver_data.report_directory, '_'.join(name_schemes))
+        base_path = os.path.join(self.solver_data.report_directory, self.__exporter_name('_'.join(name_schemes)))
 
         entries = ['time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm']
         for i in range(len(iterations)):
-            if self.solver_data.report_name is not None:
-                csv_exporters.append( Csv_Exporter(base_path, self.solver_data.report_name + '_' + str(i) + '_' + name_schemes[i] + '_richards_solver.csv', entries) )
-            else:
-                csv_exporters.append( Csv_Exporter(base_path, str(i) + '_' + name_schemes[i] + '_richards_solver.csv', entries) )
+            csv_exporters.append( Csv_Exporter(base_path, self.__exporter_name(str(i) + '_' + name_schemes[i] + '_richards_solver.csv'), entries) )
 
-        if self.solver_data.report_name is not None:
-            csv_final_exporter = Csv_Exporter(base_path, self.solver_data.report_name + '_' + str(len(iterations)) + '_' + self.solver_data.scheme.name + '_richards_solver.csv', entries)
-        else:
-            csv_final_exporter = Csv_Exporter(base_path, str(len(iterations)) + '_' + self.solver_data.scheme.name + '_richards_solver.csv', entries)
+        csv_final_exporter = Csv_Exporter(base_path, self.__exporter_name(str(len(iterations)) + '_' + self.solver_data.scheme.name + '_richards_solver.csv'), entries)
 
 
         # Time Loop

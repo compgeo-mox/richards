@@ -3,6 +3,7 @@ import porepy
 import sympy as sp
 import numpy as np
 
+# Simple class used to store the unsaturated zone parameters
 class Model_Data:
     def __init__(self, theta_r, theta_s, alpha, n, K_s, T, num_steps, richards_psi_starting_dof = 0, richards_q_starting_dof = 0) -> None:
         self.theta_r = theta_r

@@ -1,15 +1,16 @@
 ### IMPORTS
 
-import sys, time, os, shutil
-sys.path.insert(0, "/workspaces/richards/")
-
 from richards.model_params import Model_Data
-from richards.matrix_computer import Matrix_Computer
-
 from richards.solver import Solver
+from richards.csv_exporter import Csv_Exporter
+from richards.matrix_computer import Matrix_Computer
 from richards.solver_params import Solver_Data, Solver_Enum
 
-from richards.csv_exporter import Csv_Exporter
+
+
+
+import sys, time, os, shutil
+sys.path.insert(0, "/workspaces/richards/")
 
 
 import porepy as pp

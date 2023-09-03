@@ -3,6 +3,7 @@ import pygeon as pg
 import numpy as np
 import scipy.sparse as sps
 
+# Simple class used to compute the relevant matrices to be used with the FEM formulation
 class Matrix_Computer:
     def __init__(self, mdg, key='flow'):
         self.RT0 = pg.RT0(key)
@@ -37,20 +38,21 @@ class Matrix_Computer:
         self.proj_q = []
         self.proj_psi = []
 
-
+    # Helper function to generate the projection matrix of q
     def compute_proj_q_mat(self):
         if len(self.proj_q) == 0:
             for subdomain in self.mdg.subdomains(return_data=False):
                 self.proj_q.append( self.RT0.eval_at_cell_centers(subdomain) )
         return self.proj_q
 
-
+    # Helper function to generate the projection matrix of psi
     def compute_proj_psi_mat(self):
         if len(self.proj_psi) == 0:
             for subdomain in self.mdg.subdomains(return_data=False):
                 self.proj_psi.append( self.P0.eval_at_cell_centers(subdomain) )
         return self.proj_psi
 
+    # Helper function to project q to the cell center
     def project_q_to_solution(self, to_project: list):
         mats = self.compute_proj_q_mat()
 
@@ -63,6 +65,7 @@ class Matrix_Computer:
 
         return res
 
+    # Helper function to project psi to the cell center
     def project_psi_to_solution(self, to_project: list):
         mats = self.compute_proj_psi_mat()
 
@@ -75,6 +78,7 @@ class Matrix_Computer:
             
         return res
     
+    # Helper function to project a function evaluated in the cell center to FEM (scalar)
     def project_psi_to_fe(self, to_project: list):
         res = []
         for subdomain, vector in zip(self.mdg.subdomains(return_data=False), to_project):
@@ -82,7 +86,7 @@ class Matrix_Computer:
         return res
 
     
-
+    # Assemble the mass matrix of P0 elements
     def mass_matrix_P0(self):
         if self.mass_P0 == None:
             self.mass_P0 = []
@@ -92,7 +96,7 @@ class Matrix_Computer:
         return self.mass_P0
     
 
-
+    # Assemble the mass matrix of RT0 elements
     def mass_matrix_RT0(self):
         if self.mass_RT0 == None:
             self.mass_RT0 = []
@@ -102,7 +106,7 @@ class Matrix_Computer:
         return self.mass_RT0
     
 
-    
+    # Assemble the mass matrix of RT0 elements with the conductivity tensor
     def mass_matrix_RT0_conductivity(self, tensors: list):
         for subdomain_data, tensor in zip(self.mdg.subdomains(return_data=True), tensors):
             sd, data = subdomain_data
@@ -111,19 +115,19 @@ class Matrix_Computer:
         return pg.face_mass(self.mdg, self.RT0, keyword=self.key)
     
 
-    
+    # Assemble the divergence matrix for RT0/P0
     def divergence_matrix(self):
         return pg.div(self.mdg)
     
 
-    
+    # Assemble the mixed matrix (scalar, div(vect))_{\Omega} for RT0/P0
     def matrix_B(self):
         if self.B == None:
             self.B = - (self.mass_matrix_P0()[0] @ pg.div(self.mdg)).tocsc()
         return self.B
     
 
-    
+    # Prepare the assembly of matrix C for the Newton method with RT0 elements
     def __setup_C(self):
         self.HB = []
         self.node_coords = []
@@ -157,7 +161,7 @@ class Matrix_Computer:
             self.size_A.append( np.power(sd.dim + 1, 1) * sd.num_cells )
 
 
-
+    # Assemble the matrix C for the Newton method with RT0 elements
     def C(self, model_data, psi, q):
         if self.prepared_C == False:
             self.__setup_C()

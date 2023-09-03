@@ -6,7 +6,7 @@ class Solver_Enum(Enum):
     LSCHEME = 3
 
 
-
+# Simple class used to store the solver related parameters and to thenerate the rhs of the problem
 class Solver_Data:
     def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, L_Scheme_value=None, output_directory='output', report_directory='report', report_name=None):
         self.mdg = mdg
