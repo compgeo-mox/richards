@@ -7,8 +7,6 @@ from richards.matrix_computer import Matrix_Computer
 from richards.solver_params import Solver_Data, Solver_Enum
 
 
-
-
 import sys, time, os, shutil
 sys.path.insert(0, "/workspaces/richards/")
 
@@ -135,8 +133,8 @@ def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
             exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, Solver_Enum.LSCHEME, int_model_data)])
 
 
-
-for steps in range(9, 109, 10):
+#for steps in range(9, 109, 10):
+for steps in range(9, 10, 10):
     print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
 
