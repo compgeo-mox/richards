@@ -134,7 +134,7 @@ def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
 
 
 #for steps in range(9, 109, 10):
-for steps in range(9, 10, 10):
+for steps in range(19, 20, 10):
     print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
 
@@ -145,4 +145,5 @@ for steps in range(9, 10, 10):
         prefixes.append(str(pref) + '_steps_' + str(steps))
 
 
-    run_experiments(L_values, prefixes, range(20, 61, 20), model_data)
+    run_experiments(L_values, prefixes, [40, 60], model_data)
+    #run_experiments(L_values, prefixes, range(20, 61, 20), model_data)
