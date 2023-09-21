@@ -109,7 +109,7 @@ class Matrix_Computer:
     # Assemble the mass matrix of RT0 elements with the conductivity tensor
     def mass_matrix_RT0_conductivity(self, tensors: list):
         for subdomain_data, tensor in zip(self.mdg.subdomains(return_data=True), tensors):
-            sd, data = subdomain_data
+            _, data = subdomain_data
             data[pp.PARAMETERS][self.key].update({"second_order_tensor": tensor})
         
         return pg.face_mass(self.mdg, self.RT0, keyword=self.key)

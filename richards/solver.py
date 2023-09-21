@@ -57,8 +57,8 @@ class Solver:
 
         if self.solver_data.step_output_allowed:
             step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
-            step_exporter.export( sol[-1] )
             sol = [[self.solver_data.initial_solution]]
+            step_exporter.export( sol[-1] )
         else:
             sol = self.solver_data.initial_solution
 
@@ -99,8 +99,8 @@ class Solver:
 
         if self.solver_data.step_output_allowed:
             step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory)
-            step_exporter.export( sol[-1] )
             sol = [[self.solver_data.initial_solution]]
+            step_exporter.export( sol[-1] )
         else:
             sol = self.solver_data.initial_solution
 
@@ -132,11 +132,13 @@ class Solver:
             if self.verbose:
                 print('Time ' + str(round(instant, 5)))
             
+            id_solver = 0
             for scheme, iteration, abs_tol, rel_tol, exporter in zip(schemes, iterations, abs_tolerances, rel_tolerances, csv_exporters):
                 print(Solver_Enum(scheme).name)
 
                 self.solver_data.max_iterations_per_step = iteration
-                tmp_sol = self.__get_method(scheme)(tmp_sol, instant, abs_tol, rel_tol, exporter)[0]
+                tmp_sol = self.__get_method(scheme)(tmp_sol, instant, abs_tol, rel_tol, exporter, id_solver)[0]
+                id_solver = id_solver + 1
 
             self.solver_data.max_iterations_per_step = backup_step
             
@@ -144,10 +146,10 @@ class Solver:
                 print(Solver_Enum(self.solver_data.scheme).name)
 
             if self.solver_data.step_output_allowed:
-                sol.append( self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter) )
+                sol.append( self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter, id_solver) )
                 step_exporter.export(sol[-1])
             else:
-                sol = self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter)[0]
+                sol = self.__get_method(self.solver_data.scheme)(tmp_sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_final_exporter, id_solver)[0]
 
         if self.solver_data.step_output_allowed:
             step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
@@ -175,7 +177,7 @@ class Solver:
 
 
 
-    def _generic_step_solver(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, method_prepare, method_step):
+    def _generic_step_solver(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, method_prepare, method_step, id_solver):
         dof_psi = self.computer.dof_psi[0]
 
         preparation = method_prepare(sol_n, t_n_1)
@@ -183,7 +185,7 @@ class Solver:
         prev = sol_n.copy()
 
         if self.solver_data.step_output_allowed:
-            save_debug = Step_Exporter(self.solver_data.mdg, "L_SCHEME_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
+            save_debug = Step_Exporter(self.solver_data.mdg, str(id_solver) + "_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
             save_debug.export( [prev] )
         
         for k in range(self.solver_data.max_iterations_per_step):
@@ -224,8 +226,8 @@ class Solver:
 
 
 
-    def _L_scheme(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
-        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._L_scheme_preparation, self._L_scheme_method_step)
+    def _L_scheme(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, id_solver=0):
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._L_scheme_preparation, self._L_scheme_method_step, id_solver)
     
     def _L_scheme_preparation(self, sol_n, t_n_1):
         proj_psi = self.computer.compute_proj_psi_mat()[0]
@@ -278,8 +280,8 @@ class Solver:
 
 
 
-    def _newton(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
-        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step)
+    def _newton(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, id_solver=0):
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step, id_solver)
 
     def _newton_preparation(self, sol_n, t_n_1):
         proj_psi = self.computer.compute_proj_psi_mat()[0]
@@ -333,8 +335,8 @@ class Solver:
 
 
 
-    def _modified_picard(self, sol_n, t_n_1, abs_tol, rel_tol, exporter):
-        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step)
+    def _modified_picard(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, id_solver=0):
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step, id_solver)
 
     def _modified_picard_preparation(self, sol_n, t_n_1):
         proj_psi = self.computer.compute_proj_psi_mat()[0]
