@@ -3,9 +3,14 @@ import porepy
 import sympy as sp
 import numpy as np
 
-# Simple class used to store the unsaturated zone parameters
 class Model_Data:
-    def __init__(self, theta_r, theta_s, alpha, n, K_s, T, num_steps, richards_psi_starting_dof = 0, richards_q_starting_dof = 0) -> None:
+    """
+    Simple class that stores the parameters required to perform a Richard simulation (from the phisical parameters, to the solver ones)
+    """
+    def __init__(self, 
+                 theta_r, theta_s, alpha, n, K_s, 
+                 T, num_steps, 
+                 richards_psi_starting_dof = 0, richards_q_starting_dof = 0) -> None:
         self.theta_r = theta_r
         self.theta_s = theta_s
 
@@ -38,18 +43,27 @@ class Model_Data:
 
 
     def __theta_setup(self, order):
+        """
+        Prepare the theta and its derivatives up to the specified order
+        """
         fixed_len = len(self.derivative_theta)
 
         for od in range( order - fixed_len + 1):
             self.derivative_theta.append( sp.lambdify(self.psi_var, sp.diff(self.theta_expression, self.psi_var, fixed_len + od), 'numpy') )
 
     def __hydraulic_setup(self, order):
+        """
+        Prepare the hydraulic conductivity coefficient and its derivatives up to the specified order
+        """
         fixed_len = len(self.derivative_K)
         
         for od in range( order - fixed_len + 1):
             self.derivative_K.append( sp.lambdify(self.psi_var, sp.diff(self.hydraulic_conductivity_expression, self.psi_var, fixed_len + od), 'numpy') )
 
     def __inv_hydraulic_setup(self, order):
+        """
+        Prepare the inverse hydraulic conductivity coefficient and its derivatives up to the specified order
+        """
         fixed_len = len(self.derivative_K_inv)
         
         for od in range( order - fixed_len + 1):
@@ -57,6 +71,9 @@ class Model_Data:
 
     
     def __internal_theta(self, psi, order):
+        """
+        It will return the derivative of theta of the specified order evaluated in the center of each elemet
+        """
         mask = np.zeros_like(psi, dtype=bool)
         mask[self.richards_psi_starting_dof:]=True
         mask = np.logical_and(psi < self.h_s, mask)
@@ -72,6 +89,9 @@ class Model_Data:
     
     
     def __internal_hydraulic(self, psi, order):
+        """
+        It will return the derivative of hydraulic conductivity of the specified order evaluated in the center of each elemet
+        """
         mask = np.zeros_like(psi, dtype=bool)
         mask[self.richards_psi_starting_dof:]=True
         mask = np.logical_and(psi < self.h_s, mask)
@@ -87,6 +107,9 @@ class Model_Data:
     
     
     def __internal_inv_hydraulic(self, psi, order):
+        """
+        It will return the derivative of inverse hydraulic conductivity of the specified order evaluated in the center of each elemet
+        """
         mask = np.zeros_like(psi, dtype=bool)
         mask[self.richards_psi_starting_dof:]=True
         mask = np.logical_and(psi < self.h_s, mask)
@@ -102,6 +125,9 @@ class Model_Data:
 
 
     def theta(self, psi, order = 0):
+        """
+        It will return theta (or one of its derivatives) evaluated in the cell centers.
+        """
         if len(self.derivative_theta) <= order:
             self.__theta_setup(order)
 
@@ -109,6 +135,9 @@ class Model_Data:
 
 
     def hydraulic_conductivity_coefficient(self, psi, order = 0):
+        """
+        It will return the hydraulic conductivity (or one of its derivatives) evaluated in the cell centers.
+        """
         if len(self.derivative_K) <= order:
             self.__hydraulic_setup(order)
 
@@ -116,6 +145,9 @@ class Model_Data:
 
 
     def inverse_hydraulic_conductivity_coefficient(self, psi, order = 0):
+        """
+        It will return the inverse hydraulic conductivity (or one of its derivatives) evaluated in the cell centers.
+        """
         if len(self.derivative_K_inv) <= order:
             self.__inv_hydraulic_setup(order)
 
