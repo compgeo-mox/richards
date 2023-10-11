@@ -2,16 +2,19 @@ import porepy as pp
 import pygeon as pg
 import numpy as np
 import scipy.sparse as sps
+import scipy.integrate as integrate
 
 # Simple class used to compute the relevant matrices to be used with the FEM formulation
 class Matrix_Computer:
     """
     A simple class used to generate the various matrices required to perform the FEM method.
     """
-    def __init__(self, mdg, key='flow'):
+    def __init__(self, mdg, key='flow', integrate_order=5, tol=1e-5):
         self.RT0 = pg.RT0(key)
         self.P0  = pg.PwConstants(key)
 
+        self.integrate_order = integrate_order
+        self.tol = tol
 
         self.key = key
 
@@ -162,6 +165,105 @@ class Matrix_Computer:
             data[pp.PARAMETERS][self.key].update({"second_order_tensor": tensor})
         
         return pg.face_mass(self.mdg, self.RT0, keyword=self.key)
+
+
+    def __find_ordering(self, coord: np.array):
+        lx = np.argmin(coord[0, :])
+        rx = np.argmax(coord[0, :])
+        mx = np.setdiff1d(np.array([0,1,2]), np.array([lx, rx]))[0]
+
+        # Vertical Alignment
+        if np.abs( coord[0, lx] - coord[0, mx] ) < self.tol:
+            # lx and mx vertical aligned, rx no
+            up =   lx if np.argmax(coord[1, np.array([lx, mx])]) == 0 else mx
+            down = lx if np.argmin(coord[1, np.array([lx, mx])]) == 0 else mx
+
+            if np.abs( coord[1, up] - coord[1, rx] ) < self.tol:
+                return [up, down, rx]
+            else:
+                return [down, rx, up]
+        else:
+            # rx and mx vertical aligned, lx no
+            up =   rx if np.argmax(coord[1, np.array([rx, mx])]) == 0 else mx
+            down = rx if np.argmin(coord[1, np.array([rx, mx])]) == 0 else mx
+
+            if np.abs( coord[1, up] - coord[1, lx] ) < self.tol:
+                return [up, lx, down]
+            else:
+                return [down, up, lx]
+
+    
+    def __local_q(self, coord, sign, K11_func, K12_func, K21_func, K22_func):
+        M = np.zeros(shape=(3,3))
+
+        ordering = self.__find_ordering(coord)
+
+        orientation = [-1, 1, -1] * sign[ordering]
+
+        q_funcs = [lambda x,y: np.array([-x, -y]), lambda x,y: np.array([x-1, y]), lambda x,y: np.array([-x, 1-y])]
+
+        K_local = lambda x,y: np.array([[K11_func(x,y), K12_func(x,y)],
+                                         K21_func(x,y), K22_func(x,y)])
+
+        for i in range(3):
+            for j in range(3):
+                integrand = lambda ys,x: np.array([q_funcs[j](x,y).T @ K_local(x, y) @ q_funcs[i](x,y) for y in np.array(ys)])
+                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
+                M[ordering[i], ordering[j]] = orientation[j] * orientation[i] * integrate.fixed_quad(inside, 0, 1, n=self.integrate_order, args=(self.integrate_order,))[0]
+        
+        return M
+    
+
+    def mass_matrix_RT0_conductivity_manual(self, K11_func, K12_func, K21_func, K22_func):
+        subdomain, data = self.mdg.subdomains(return_data=True)[0]
+
+        faces, _, sign = sps.find(subdomain.cell_faces)
+
+        _, _, _, _, _, node_coords = pp.map_geometry.map_grid(
+                subdomain, data.get("deviation_from_plane_tol", 1e-5)
+            )
+        
+        dim = subdomain.dim
+        
+        node_coords = node_coords[: dim, :]
+
+        self.RT0._compute_cell_face_to_opposite_node(subdomain, data)
+        cell_face_to_opposite_node = data[self.RT0.cell_face_to_opposite_node]
+        
+        size_A = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
+        rows_A = np.empty(size_A, dtype=int)
+        cols_A = np.empty(size_A, dtype=int)
+        data_A = np.empty(size_A)
+        idx_A = 0
+
+        for c in range(subdomain.num_cells):
+            # For the current cell retrieve its faces
+            loc = slice(subdomain.cell_faces.indptr[c], subdomain.cell_faces.indptr[c + 1])
+            faces_loc = faces[loc]
+        
+            # Get the opposite node id for each face (BUGGED)
+            # node = cell_face_to_opposite_node[c, :]
+            node = np.flip(np.sort(cell_face_to_opposite_node[c, :]))
+
+            coord_loc = node_coords[:, node]
+
+            #print( 'Face: ' + str(faces_loc) + ', Sign: ' + str(sign[loc]) + ', Node: ' + str(node))
+            #print(coord_loc)
+
+            A = self.__local_q(coord_loc, sign[loc], K11_func, K12_func, K21_func, K22_func)
+
+            # Save values for Hdiv-mass local matrix in the global structure
+            cols = np.concatenate(faces_loc.size * [[faces_loc]])
+            loc_idx = slice(idx_A, idx_A + A.size)
+            rows_A[loc_idx] = cols.T.ravel()
+            cols_A[loc_idx] = cols.ravel()
+            data_A[loc_idx] = A.ravel()
+            idx_A += A.size
+
+            #print('')
+        
+        return sps.coo_matrix((data_A, (rows_A, cols_A)))
+        
     
 
     # Assemble the divergence matrix for RT0/P0

@@ -133,17 +133,15 @@ def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
             exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, Solver_Enum.LSCHEME, int_model_data)])
 
 
-#for steps in range(9, 109, 10):
-for steps in range(19, 20, 10):
+for steps in range(19, 21, 10): #range(9, 109, 10):
     print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
 
-    L_values = range(22, 103, 4)
+    L_values = list(range(22, 103, 4))
     prefixes = []
 
-    for pref in range(21, 103, 4):
+    for pref in L_values:
         prefixes.append(str(pref) + '_steps_' + str(steps))
 
 
-    run_experiments(L_values, prefixes, [40, 60], model_data)
-    #run_experiments(L_values, prefixes, range(20, 61, 20), model_data)
+    run_experiments(L_values, prefixes, [20, 60], model_data)
