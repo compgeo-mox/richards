@@ -49,10 +49,10 @@ class Solver:
 
 
     def solve(self, max_iterations_per_step_override = None):
+
         if max_iterations_per_step_override is not None:
             backup_step = self.solver_data.max_iterations_per_step
             self.solver_data.max_iterations_per_step = max_iterations_per_step_override
-
 
 
         if self.solver_data.step_output_allowed:
@@ -203,8 +203,7 @@ class Solver:
 
             if self.verbose:
                 print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                    + ', error L2 relative psi: ' + format(abs_err_psi, str(5 + ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + '.' + str(ceil(log10(1 / self.solver_data.eps_psi_abs)) + 4) + 'f') )
-
+                    + ', error L2 relative psi: ' + str(abs_err_psi))
 
             if isnan(abs_err_psi) or isnan(abs_err_prev):
                 break
@@ -320,7 +319,7 @@ class Solver:
         # construct the local matrices
         M_k_n_1 = self.computer.mass_matrix_RT0_conductivity([pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(preparation['proj_psi'] @ psi))])
             
-        spp = sps.bmat([[M_k_n_1, (B.T + C)], 
+        spp = sps.bmat([[M_k_n_1,                (B.T + C)], 
                         [-preparation['dt'] * B,         D]], format="csc")
             
             
@@ -336,7 +335,7 @@ class Solver:
 
 
     def _modified_picard(self, sol_n, t_n_1, abs_tol, rel_tol, exporter, id_solver=0):
-        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._newton_preparation, self._newton_method_step, id_solver)
+        return self._generic_step_solver(sol_n, t_n_1, abs_tol, rel_tol, exporter, self._modified_picard_preparation, self._modified_picard_method_step, id_solver)
 
     def _modified_picard_preparation(self, sol_n, t_n_1):
         proj_psi = self.computer.compute_proj_psi_mat()[0]
@@ -351,7 +350,7 @@ class Solver:
         # Theta^n
         fixed_rhs[-dof_psi:] += Mass_psi @ self.computer.project_psi_to_fe([self.model_data.theta(proj_psi @ sol_n[-dof_psi:])])[0] / dt
 
-        return {'proj_psi': proj_psi, 'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'dt': dt,
+        return {'proj_psi': proj_psi, 'dof_psi': dof_psi, 'dof_q': self.computer.dof_q[0], 'dt': dt, 't_n_1': t_n_1,
                 'mass_psi': self.computer.mass_matrix_P0()[0], 'B': self.computer.matrix_B(), 'fixed_rhs': fixed_rhs.copy()}
     
     def _modified_picard_method_step(self, preparation, k, prev):

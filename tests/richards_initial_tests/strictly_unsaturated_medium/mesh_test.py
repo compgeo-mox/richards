@@ -22,8 +22,8 @@ import time
 ### PARAMETERS
 K = 1000
 
-eps_psi_abs = 1e-7
-eps_psi_rel = 0
+eps_psi_abs = 1e-5
+eps_psi_rel = 1e-5
 
 problem_name = 'unsaturated'
 

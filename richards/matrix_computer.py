@@ -279,7 +279,7 @@ class Matrix_Computer:
         """
         Assemle the B matrix (product between P0 and the divergence of RT0 )
         """
-        if self.B == None:
+        if self.B is None:
             self.B = - (self.mass_matrix_P0()[0] @ pg.div(self.mdg)).tocsc()
         return self.B
     
@@ -289,7 +289,7 @@ class Matrix_Computer:
         """
         Prepare the common requirments to compute the C matrix (same as mass matrix of RT0, with the derivative of the inverse hydraulic conductivity)
         """
-        if self.prepared_C == False:
+        if not self.prepared_C:
             self.prepared_C = True
         else:
             return
@@ -310,7 +310,7 @@ class Matrix_Computer:
             self.HB[-1] /= sd.dim * sd.dim * (sd.dim + 1) * (sd.dim + 2)
         
             deviation_from_plane_tol = data.get("deviation_from_plane_tol", 1e-5)
-            c_centers, f_normals, f_centers, R, dim, node_coords = pp.map_geometry.map_grid(sd, deviation_from_plane_tol)
+            _, _, _, _, _, node_coords = pp.map_geometry.map_grid(sd, deviation_from_plane_tol)
 
             self.node_coords.append( node_coords )
 

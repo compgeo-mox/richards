@@ -21,13 +21,14 @@ import numpy as np
 
 K = 500
 
-eps_psi_abs = 1e-6
-eps_psi_rel = 1e-6
+eps_psi_abs = 1e-5
+eps_psi_rel = 1e-5
 
 dt_D = 1/16
 problem_name = 'benchmark_L_test'
 
 output_directory = 'output_evolutionary'
+report_directory = 'report_L_test'
 
 def g_func(x,t): 
     return np.array([0, -1, -1])
@@ -120,9 +121,9 @@ def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
 
     for directory_prefix in directory_prefixes:
         if directory_prefix is None:
-            report_output_directories.append('report/' + problem_name + '_LSCHEME')
+            report_output_directories.append(os.path.join(report_directory, problem_name + '_LSCHEME'))
         else:
-            report_output_directories.append('report/' + problem_name + '_' + str(directory_prefix)  + '_LSCHEME')
+            report_output_directories.append(os.path.join(report_directory, directory_prefix + '_' + problem_name + '_LSCHEME'))
             
         exporters.append( Csv_Exporter(report_output_directories[-1], problem_name + '_LSCHEME_richards_solver.csv', ['N', 'time'], overwrite_existing=False) )
 
@@ -130,18 +131,48 @@ def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
     for N in Ns:
         for L_value, exporter, report_output_directory in zip(L_values, exporters, report_output_directories):
             print('Running experiment with N=' + str(N) + ' with scheme LSCHEME and L=' + str(L_value * 0.1e-2))
-            exporter.add_entry([N, run_experiment(N, str(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, Solver_Enum.LSCHEME, int_model_data)])
+            exporter.add_entry([N, run_experiment(N, "{:03d}".format(N) + '_' + problem_name, L_value * 0.1e-2, report_output_directory, Solver_Enum.LSCHEME, int_model_data)])
 
 
-for steps in range(19, 21, 10): #range(9, 109, 10):
-    print('Problem name: ' + problem_name + ', num_steps=' + str(steps))
-    model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
-
+def variable_L():
+    steps = 9
+    print('Problem name: ' + problem_name + ', Variable_L, num_steps=' + str(steps))
     L_values = list(range(22, 103, 4))
     prefixes = []
 
-    for pref in L_values:
-        prefixes.append(str(pref) + '_steps_' + str(steps))
+    for L_value in L_values:
+        prefixes.append('VARL_' + str(L_value) + '_steps_' + str(steps))
+
+    model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
+    run_experiments(L_values, prefixes, [40, 60], model_data)
+
+def variable_N():
+    steps = 9
+    print('Problem name: ' + problem_name + ', Variable_N, num_steps=' + str(steps))
+    L_values = [35, 45]
+    prefixes = []
+
+    for L_value in L_values:
+        prefixes.append('VARN_' + str(L_value) + '_steps_' + str(steps))
 
 
-    run_experiments(L_values, prefixes, [20, 60], model_data)
+    model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
+    run_experiments(L_values, prefixes, [20, 40, 60, 80, 100, 120, 140, 160], model_data)
+
+def variable_dt():
+    steps = list(range(9, 10, 100))
+    L_values = [35, 45]
+
+    for step in steps:
+        prefixes = []
+        for pref in L_values:
+            prefixes.append('VART_' + str(pref) + '_steps_' + str(step))
+        
+        model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=step)
+        run_experiments(L_values, prefixes, [20, 60], model_data)
+
+
+
+variable_L()
+variable_N()
+variable_dt()

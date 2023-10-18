@@ -22,8 +22,8 @@ import numpy as np
 
 K = 250
 
-eps_psi_abs = 1e-6
-eps_psi_rel = 1e-6
+eps_psi_abs = 1e-5
+eps_psi_rel = 1e-5
 
 dt_D = 1/16
 problem_name = 'benchmark'
@@ -138,9 +138,9 @@ def run_experiments(schemes, L_values, directory_prefixes):
 
 print('Problem name: ' + problem_name)
 
-schemes = [Solver_Enum.LSCHEME, Solver_Enum.NEWTON, Solver_Enum.PICARD, Solver_Enum.LSCHEME]
-L_values = [3.501e-2, None, None, 4.501e-2]
-prefixes = ['1', None, None, '2']
+schemes = [Solver_Enum.NEWTON, Solver_Enum.LSCHEME, Solver_Enum.PICARD, Solver_Enum.LSCHEME]
+L_values = [None, 3.501e-2, None, 4.501e-2]
+prefixes = [None, '1', None, '2']
 
 
 run_experiments(schemes, L_values, prefixes)
