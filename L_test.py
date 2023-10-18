@@ -149,7 +149,7 @@ def variable_L():
 def variable_N():
     steps = 9
     print('Problem name: ' + problem_name + ', Variable_N, num_steps=' + str(steps))
-    L_values = [35, 45]
+    L_values = [33, 35]
     prefixes = []
 
     for L_value in L_values:
@@ -161,7 +161,7 @@ def variable_N():
 
 def variable_dt():
     steps = list(range(9, 10, 100))
-    L_values = [35, 45]
+    L_values = [33, 35]
 
     for step in steps:
         prefixes = []
