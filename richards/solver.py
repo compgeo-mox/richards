@@ -184,6 +184,8 @@ class Solver:
 
         prev = sol_n.copy()
 
+        mass_psi = self.computer.mass_matrix_P0()
+
         if self.solver_data.step_output_allowed:
             save_debug = Step_Exporter(self.solver_data.mdg, str(id_solver) + "_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
             save_debug.export( [prev] )
@@ -197,8 +199,9 @@ class Solver:
             if self.solver_data.step_output_allowed:
                 save_debug.export( [current] )
 
-            abs_err_psi  = np.sqrt(np.sum(np.power(current[-dof_psi:] - psi, 2)))
-            abs_err_prev = np.sqrt(np.sum(np.power(psi, 2)))
+
+            abs_err_psi  = np.sqrt((current[-dof_psi:] - psi).T @ mass_psi @ (current[-dof_psi:] - psi))
+            abs_err_prev = np.sqrt(psi.T @ mass_psi @ psi)
 
 
             if self.verbose:
