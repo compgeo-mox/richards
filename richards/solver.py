@@ -184,7 +184,7 @@ class Solver:
 
         prev = sol_n.copy()
 
-        mass_psi = self.computer.mass_matrix_P0()
+        mass_psi = self.computer.mass_matrix_P0()[0]
 
         if self.solver_data.step_output_allowed:
             save_debug = Step_Exporter(self.solver_data.mdg, str(id_solver) + "_sol_" + str(t_n_1), self.solver_data.output_directory + "/debug")
