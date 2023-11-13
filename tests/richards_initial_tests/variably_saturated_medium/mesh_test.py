@@ -102,9 +102,9 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
 
     ### PREPARE SOLVER DATA
     cp = Matrix_Computer(mdg)
-    initial_solution = np.zeros(cp.dof_q[0] + cp.dof_psi[0])
-    initial_solution[-cp.dof_psi[0]:] += np.hstack(initial_pressure)
-    initial_solution[:cp.dof_q[0]] += np.hstack(initial_velocity)
+    initial_solution = np.zeros(cp.dof_RT0[0] + cp.dof_P0[0])
+    initial_solution[-cp.dof_P0[0]:] += np.hstack(initial_pressure)
+    initial_solution[:cp.dof_RT0[0]] += np.hstack(initial_velocity)
 
     solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,

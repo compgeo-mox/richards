@@ -30,18 +30,15 @@ problem_name = 'benchmark_L_test'
 output_directory = 'output_evolutionary'
 report_directory = 'report_L_test'
 
-def g_func(x,t): 
-    return np.array([0, -1, -1])
-
 def initial_pressure_func(x):
-    return 1-x[1]
+    return 1
 
     
 def bc_gamma_d(x, t, tolerance):
     if   x[0] > 2-tolerance and x[1] > 0-tolerance and x[1] < 1+tolerance:
-        res =  1 - x[1]
+        res =  1
     elif x[1] > 3-tolerance and x[0] > 0-tolerance and x[0] < 1+tolerance:
-        res = min( 0.2, -2 + 2.2 * t / dt_D )
+        res = min( 3.2, 1 + 2.2 * t / dt_D )
     else:
         res = 0
 
@@ -93,8 +90,8 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
 
     ### PREPARE SOLVER DATA
     cp = Matrix_Computer(mdg)
-    initial_solution = np.zeros(cp.dof_q[0] + cp.dof_psi[0])
-    initial_solution[-cp.dof_psi[0]:] += np.hstack(initial_pressure)
+    initial_solution = np.zeros(cp.dof_RT0[0] + cp.dof_P0[0])
+    initial_solution[-cp.dof_P0[0]:] += np.hstack(initial_pressure)
 
     solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
@@ -104,7 +101,6 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
                             step_output_allowed=False)
 
     solver_data.set_rhs_vector_q(lambda t: np.hstack(list(cond(t) for cond in bc_value)))
-    solver_data.set_rhs_function_q(g_func)
 
     ### PREPARE SOLVER
     start = time.time()

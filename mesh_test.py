@@ -1,2 +1,2 @@
-import tests.richards_initial_tests.benchamark_problem.mesh_test
-import tests.richards_initial_tests.strictly_unsaturated_medium.mesh_test
+import tests.richards_initial_tests.benchamark_problem.primal_mesh_test
+import tests.richards_initial_tests.benchamark_problem.dual_mesh_test

@@ -26,24 +26,22 @@ eps_psi_abs = 1e-5
 eps_psi_rel = 1e-5
 
 dt_D = 1/16
-problem_name = 'benchmark'
+problem_name = 'dual_benchmark'
 
 output_directory = 'output_evolutionary'
 
 model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=9)
 
-def g_func(x,t): 
-    return np.array([0, -1, -1])
 
-def initial_pressure_func(x):
-    return 1-x[1]
+def initial_h_func(x):
+    return 1
 
     
 def bc_gamma_d(x, t, tolerance):
     if   x[0] > 2-tolerance and x[1] > 0-tolerance and x[1] < 1+tolerance:
-        res =  1 - x[1]
+        res =  1
     elif x[1] > 3-tolerance and x[0] > 0-tolerance and x[0] < 1+tolerance:
-        res = min( 0.2, -2 + 2.2 * t / dt_D )
+        res = min( 3.2, 1 + 2.2 * t / dt_D )
     else:
         res = 0
 
@@ -58,15 +56,11 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
 
     key = "flow"
 
-    bc_value = []
-    bc_essential = []
-    initial_pressure = []
-
     RT0 = pg.RT0(key)
     P0  = pg.PwConstants(key)
 
     subdomain, data = mdg.subdomains(return_data=True)[0]
-    initial_pressure.append(P0.interpolate(subdomain, initial_pressure_func))
+    initial_pressure = P0.interpolate(subdomain, initial_h_func)
             
     # with the following steps we identify the portions of the boundary to impose the boundary conditions
     boundary_faces_indexes = subdomain.get_boundary_faces()
@@ -84,18 +78,18 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
         "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
     })
 
-    bc_value.append(lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d))
+    bc_value = lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d)
 
     essential_pressure_dofs = np.zeros(P0.ndof(subdomain), dtype=bool)
-    bc_essential.append(np.hstack((gamma_n, essential_pressure_dofs)))
+    bc_essential = np.hstack((gamma_n, essential_pressure_dofs))
 
     if os.path.exists(output_directory):
         shutil.rmtree(output_directory)
 
     ### PREPARE SOLVER DATA
     cp = Matrix_Computer(mdg)
-    initial_solution = np.zeros(cp.dof_q[0] + cp.dof_psi[0])
-    initial_solution[-cp.dof_psi[0]:] += np.hstack(initial_pressure)
+    initial_solution = np.zeros(cp.dof_RT0 + cp.dof_P0)
+    initial_solution[-cp.dof_P0:] += np.hstack(initial_pressure)
 
     solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
@@ -104,8 +98,7 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
                             report_name=prefix_file_name, report_directory=report_output_directory,
                             step_output_allowed=False)
 
-    solver_data.set_rhs_vector_q(lambda t: np.hstack(list(cond(t) for cond in bc_value)))
-    solver_data.set_rhs_function_q(g_func)
+    solver_data.set_rhs_vector_q(lambda t: bc_value(t))
 
     ### PREPARE SOLVER
     start = time.time()
@@ -138,9 +131,9 @@ def run_experiments(schemes, L_values, directory_prefixes):
 
 print('Problem name: ' + problem_name)
 
-schemes = [Solver_Enum.NEWTON, Solver_Enum.LSCHEME, Solver_Enum.PICARD, Solver_Enum.LSCHEME]
-L_values = [None, 3.501e-2, None, 4.501e-2]
-prefixes = [None, '1', None, '2']
+schemes = [Solver_Enum.LSCHEME, Solver_Enum.NEWTON, Solver_Enum.PICARD, Solver_Enum.LSCHEME]
+L_values = [3.501e-2, None, None, 4.501e-2]
+prefixes = ['1', None, None, '2']
 
 
 run_experiments(schemes, L_values, prefixes)

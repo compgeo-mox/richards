@@ -12,134 +12,123 @@ class Matrix_Computer:
     def __init__(self, mdg, key='flow', integrate_order=5, tol=1e-5):
         self.RT0 = pg.RT0(key)
         self.P0  = pg.PwConstants(key)
+        self.P1  = pg.Lagrange1(key)
 
         self.integrate_order = integrate_order
         self.tol = tol
 
         self.key = key
 
-        self.prepared_C = False
-        self.HB = []
+        self.prepared_dual_C = False
+        self.prepared_primal_C = True
+
+        self.mdg = pg.as_mdg(mdg)        
+
+        subdomain, data = self.mdg.subdomains(return_data=True)[0]
+
+        pp.initialize_data(subdomain, data, key, {
+            "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
+        })
+
+        self.dof_RT0 = self.RT0.ndof(subdomain)
+        self.dof_P0  = self.P0.ndof(subdomain)
+        self.dof_P1  = self.P1.ndof(subdomain)
 
 
-        self.mdg = mdg
-        
-        self.mass_P0  = None
-        self.mass_RT0 = None
-        self.B = None
-        self.mixed_matrix = None
-
-        self.dof_q = []
-        self.dof_psi = []
-
-
-        for subdomain, data in self.mdg.subdomains(return_data=True):
-            pp.initialize_data(subdomain, data, key, {
-                "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
-            })
-
-            self.dof_q.append( self.RT0.ndof(subdomain) )
-            self.dof_psi.append( self.P0.ndof(subdomain) )
-            
-
-        self.proj_q = []
-        self.proj_psi = []
-
-    # Helper function to generate the projection matrix of q
-    def compute_proj_q_mat(self):
+    # Helper function to generate the projection of RT0 dofs
+    def create_proj_RT0(self):
         """
         It returns the projection matrix from FEM to values in the center of each element for RT0
         """
-        if len(self.proj_q) == 0:
-            for subdomain in self.mdg.subdomains(return_data=False):
-                self.proj_q.append( self.RT0.eval_at_cell_centers(subdomain) )
-        return self.proj_q
 
-    # Helper function to generate the projection matrix of psi
-    def compute_proj_psi_mat(self):
-        """
-        It returns the projection matrix from FEM to values in the center of each element for P0
-        """
-        if len(self.proj_psi) == 0:
-            for subdomain in self.mdg.subdomains(return_data=False):
-                self.proj_psi.append( self.P0.eval_at_cell_centers(subdomain) )
-        return self.proj_psi
+        # https://stackoverflow.com/a/610923
+        try:
+            return self.mat_proj_RT0
+        except AttributeError:
+            self.mat_proj_RT0 = self.RT0.eval_at_cell_centers(self.mdg.subdomains(return_data=False)[0])
+            return self.mat_proj_RT0
 
-    # Helper function to generate the projection matrix of h
-    def compute_proj_h_mat(self):
+
+    # Helper function to generate the projection of P0 dofs
+    def create_proj_P0(self):
         """
-        It returns the projection matrix from FEM to values in the center of each element for P0
+        It returns the projection matrix from FEM to values in the center of each element for RT0
         """
-        return self.compute_proj_psi_mat()
+        try:
+            return self.mat_proj_P0
+        except AttributeError:
+            self.mat_proj_P0 = self.P0.eval_at_cell_centers(self.mdg.subdomains(return_data=False)[0])
+            return self.mat_proj_P0
+
+
+    # Helper function to generate the projection of P1 dofs
+    def create_proj_P1(self):
+        """
+        It returns the projection matrix from FEM to values in the center of each element for RT0
+        """
+        try:
+            return self.mat_proj_P1
+        except AttributeError:
+            self.mat_proj_P1 = self.P1.eval_at_cell_centers(self.mdg.subdomains(return_data=False)[0])
+            return self.mat_proj_P1
+
+
+
 
     # Helper function to project q to the cell center
-    def project_q_to_solution(self, to_project: list):
+    def project_RT0_to_solution(self, to_project):
         """
         It returns the projection of element in to_project from RT0 to the values in the center of each element
         """
-        mats = self.compute_proj_q_mat()
-
-        assert(len(mats) == len(to_project))
-
-        res = []
-
-        for matrix, vector in zip(mats, to_project):
-            res.append( matrix @ vector )
-
-        return res
+        return self.create_proj_RT0() @ to_project
 
     # Helper function to project psi to the cell center
-    def project_psi_to_solution(self, to_project: list):
+    def project_P0_to_solution(self, to_project):
         """
         It returns the projection of element in to_project from P0 to the values in the center of each element
         """
-        mats = self.compute_proj_psi_mat()
+        return self.create_proj_P0() @ to_project
 
-        assert(len(mats) == len(to_project))
-
-        res = []
-
-        for matrix, vector in zip(mats, to_project):
-            res.append( matrix @ vector )
-            
-        return res
-
-    # Helper function to project h to the cell center
-    def project_h_to_solution(self, to_project: list):
+    # Helper function to project psi to the cell center
+    def project_P1_to_solution(self, to_project):
         """
         It returns the projection of element in to_project from P0 to the values in the center of each element
         """
-        return self.project_psi_to_solution(to_project)
+        return self.create_proj_P1() @ to_project
     
+
+
+
     # Helper function to project a function evaluated in the cell center to FEM (scalar)
-    def project_psi_to_fe(self, to_project: list):
+    def project_function_to_P0(self, to_project):
         """
         Helper function to project the values in the center of each element to FEM P0
         """
-        res = []
-        for subdomain, vector in zip(self.mdg.subdomains(return_data=False), to_project):
-            res.append( subdomain.cell_volumes * vector)
-        return res
+        return self.mdg.subdomains(return_data=False)[0].cell_volumes * to_project
     
-    # Helper function to project a function evaluated in the cell center to FEM (scalar)
-    def project_h_to_fe(self, to_project: list):
+    # Helper function to project a function evaluated in the nodes to FEM (scalar)
+    def project_function_to_P1(self, to_project):
         """
         Helper function to project the values in the center of each element to FEM P0
         """
-        return self.project_psi_to_fe(to_project)
+        return to_project
 
     
+
+
+
     # Assemble the mass matrix of P0 elements
     def mass_matrix_P0(self):
         """
         Assemble (and store internally) the P0 mass matrix
         """
-        if self.mass_P0 == None:
-            self.mass_P0 = []
-            for subdomain in self.mdg.subdomains(return_data=False):
-                self.mass_P0.append( self.P0.assemble_mass_matrix(subdomain) )
-        
-        return self.mass_P0
+
+        # https://stackoverflow.com/a/610923
+        try:
+            return self.mass_P0
+        except AttributeError:
+            self.mass_P0 = self.P0.assemble_mass_matrix(self.mdg.subdomains(return_data=False)[0])
+            return self.mass_P0
     
 
     # Assemble the mass matrix of RT0 elements
@@ -147,25 +136,110 @@ class Matrix_Computer:
         """
         Assemble (and store internally) the RT0 mass matrix
         """
-        if self.mass_RT0 == None:
-            self.mass_RT0 = []
-            for subdomain in self.mdg.subdomains(return_data=False):
-                self.mass_RT0.append( self.RT0.assemble_mass_matrix(subdomain) )
+        # https://stackoverflow.com/a/610923
+        try:
+            return self.mass_RT0
+        except AttributeError:
+            self.mass_RT0 = self.RT0.assemble_mass_matrix(self.mdg.subdomains(return_data=False)[0])
+            return self.mass_RT0
         
-        return self.mass_RT0
+    # Assemble the mass matrix of P1 elements
+    def mass_matrix_P1(self):
+        """
+        Assemble (and store internally) the P0 mass matrix
+        """
+
+        # https://stackoverflow.com/a/610923
+        try:
+            return self.mass_P1
+        except AttributeError:
+            self.mass_P1 = self.P1.assemble_mass_matrix(self.mdg.subdomains(return_data=False)[0])
+            return self.mass_P1
+        
     
 
-    # Assemble the mass matrix of RT0 elements with the conductivity tensor
-    def mass_matrix_RT0_conductivity(self, tensors: list):
-        """
-        Assemble the RT0 mass matrix (with the conductivity tensor). The result is NOT cached.
-        """
-        for subdomain_data, tensor in zip(self.mdg.subdomains(return_data=True), tensors):
-            _, data = subdomain_data
-            data[pp.PARAMETERS][self.key].update({"second_order_tensor": tensor})
-        
-        return pg.face_mass(self.mdg, self.RT0, keyword=self.key)
+    def __integrate_local_mass_dtheta(self, model_data, coord, psi, quad):
+        ordering = self.__find_ordering(coord)
 
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
+
+        qs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
+        
+        J = np.array([[x1[0]-x0[0], x2[0]-x0[0]],
+                    [x1[1]-x0[1], x2[1]-x0[1]]])
+        
+        jacobian = np.linalg.det(J)
+        M = np.zeros(shape=(3,3))
+
+        ordered_psi = psi[ordering]
+        psi_fun = lambda x,y: ordered_psi[0] + (ordered_psi[1] - ordered_psi[0]) * x + (ordered_psi[2] - ordered_psi[0]) * y
+        func = lambda x,y: model_data.theta(np.array([psi_fun(x,y)]), 1)[0]
+
+        for i in range(3):
+            for j in range(3):
+                integrand = lambda ys,x: np.array([qs[j](x,y) * qs[i](x,y) * func(x,y) for y in np.array(ys)])
+                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
+                tmp = integrate.fixed_quad(inside, 0, 1, n=quad, args=(quad,))[0]
+
+                M[ ordering[i], ordering[j] ] = tmp * jacobian
+
+        return M
+    
+    def __quick_local_mass_dtheta(self, model_data, coord, psi, quad):
+        width  = np.max(coord[0, :]) - np.min(coord[0, :])
+        height = np.max(coord[1, :]) - np.min(coord[1, :])
+
+        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.array([np.mean(psi)]), 1)[0]
+
+        
+    # Assemble the mass matrix of P1 elements
+    def mass_matrix_P1_dtheta(self, model_data, psi, quad_order = 0):
+        """
+        Assemble (and store internally) the P0 mass matrix
+        """
+
+        subdomain = self.mdg.subdomains(return_data=False)[0]
+
+        size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
+        rows_I = np.empty(size, dtype=int)
+        cols_J = np.empty(size, dtype=int)
+        data_IJ = np.empty(size)
+        idx = 0
+        
+        _, _, _, _, _, node_coords = pp.map_geometry.map_grid(subdomain)
+
+        # Allocate the data to store matrix entries, that's the most efficient
+        # way to create a sparse matrix.
+
+        local_mass = self.__quick_local_mass_dtheta if quad_order <= 1 else self.__integrate_local_mass_dtheta
+
+        cell_nodes = subdomain.cell_nodes()
+
+        for c in np.arange(subdomain.num_cells):
+            # For the current cell retrieve its nodes
+            loc = slice(cell_nodes.indptr[c], cell_nodes.indptr[c + 1])
+
+            nodes_loc = cell_nodes.indices[loc]
+            coord_loc = node_coords[:, nodes_loc]
+
+            # Compute the stiff-H1 local matrix
+            A = local_mass(model_data, coord_loc, psi[nodes_loc], quad_order)
+
+            # Save values for stiff-H1 local matrix in the global structure
+            cols =np.tile(nodes_loc, (nodes_loc.size, 1))
+
+            loc_idx = slice(idx, idx + cols.size)
+            rows_I[loc_idx] = cols.T.ravel()
+            cols_J[loc_idx] = cols.ravel()
+            data_IJ[loc_idx] = A.ravel()
+            idx += cols.size
+        
+        return sps.csc_matrix((data_IJ, (rows_I, cols_J)))
+        
+
+        
 
     def __find_ordering(self, coord: np.array):
         lx = np.argmin(coord[0, :])
@@ -173,12 +247,12 @@ class Matrix_Computer:
         mx = np.setdiff1d(np.array([0,1,2]), np.array([lx, rx]))[0]
 
         # Vertical Alignment
-        if np.abs( coord[0, lx] - coord[0, mx] ) < self.tol:
+        if np.abs( coord[0, lx] - coord[0, mx] ) < 1e-7:
             # lx and mx vertical aligned, rx no
             up =   lx if np.argmax(coord[1, np.array([lx, mx])]) == 0 else mx
             down = lx if np.argmin(coord[1, np.array([lx, mx])]) == 0 else mx
 
-            if np.abs( coord[1, up] - coord[1, rx] ) < self.tol:
+            if np.abs( coord[1, up] - coord[1, rx] ) < 1e-7:
                 return [up, down, rx]
             else:
                 return [down, rx, up]
@@ -187,83 +261,125 @@ class Matrix_Computer:
             up =   rx if np.argmax(coord[1, np.array([rx, mx])]) == 0 else mx
             down = rx if np.argmin(coord[1, np.array([rx, mx])]) == 0 else mx
 
-            if np.abs( coord[1, up] - coord[1, lx] ) < self.tol:
+            if np.abs( coord[1, up] - coord[1, lx] ) < 1e-7:
                 return [up, lx, down]
             else:
                 return [down, up, lx]
-
     
-    def __local_q(self, coord, sign, K11_func, K12_func, K21_func, K22_func):
-        M = np.zeros(shape=(3,3))
+    def __integrate_local_A(self, coord, psi, model_data, order: int):
+        #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
+        #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
 
         ordering = self.__find_ordering(coord)
 
-        orientation = [-1, 1, -1] * sign[ordering]
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
+        
+        J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
+                            [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
+        
 
-        q_funcs = [lambda x,y: np.array([-x, -y]), lambda x,y: np.array([x-1, y]), lambda x,y: np.array([-x, 1-y])]
+        q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
 
-        K_local = lambda x,y: np.array([[K11_func(x,y), K12_func(x,y)],
-                                         K21_func(x,y), K22_func(x,y)])
+        M = np.zeros(shape=(3,3))
+
+        jacobian = 1 / np.linalg.det( J_T_1_T.T )
+
+        ordered_psi = psi[ordering]
+        psi_fun = lambda x,y: ordered_psi[0] + (ordered_psi[1] - ordered_psi[0]) * x + (ordered_psi[2] - ordered_psi[0]) * y
+            
+        for i in range(3):
+            for j in range(3):
+                integrand = lambda ys,x: np.array([model_data.hydraulic_conductivity_coefficient(np.array([psi_fun(x,y)]))[0] for y in np.array(ys)])
+                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
+                tmp = integrate.fixed_quad(inside, 0, 1, n=order, args=(order,))[0]
+
+                M[ ordering[i], ordering[j] ] = tmp * q_funcs[j].T @ q_funcs[i] * jacobian
+
+        return M
+    
+    def __quick_local_A(self, coord, psi, model_data, order: int):
+        #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
+        #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
+
+        ordering = self.__find_ordering(coord)
+
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
+        
+        J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
+                            [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
+        
+
+        q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
+
+        M = np.zeros(shape=(3,3))
+
+        jacobian = 1 / np.linalg.det( J_T_1_T.T )
+
+        tmp = model_data.hydraulic_conductivity_coefficient( np.array([np.mean(psi)]) )[0]
 
         for i in range(3):
             for j in range(3):
-                integrand = lambda ys,x: np.array([q_funcs[j](x,y).T @ K_local(x, y) @ q_funcs[i](x,y) for y in np.array(ys)])
-                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
-                M[ordering[i], ordering[j]] = orientation[j] * orientation[i] * integrate.fixed_quad(inside, 0, 1, n=self.integrate_order, args=(self.integrate_order,))[0]
-        
+                M[ ordering[i], ordering[j] ] = tmp * q_funcs[j].T @ q_funcs[i] * jacobian / 2
+
         return M
     
 
-    def mass_matrix_RT0_conductivity_manual(self, K11_func, K12_func, K21_func, K22_func):
-        subdomain, data = self.mdg.subdomains(return_data=True)[0]
+    def stifness_matrix_P1_conductivity(self, psi, model_data, order = 0):
+        # Map the domain to a reference geometry (i.e. equivalent to compute
+        # surface coordinates in 1d and 2d)
 
-        faces, _, sign = sps.find(subdomain.cell_faces)
+        subdomain = self.mdg.subdomains(return_data=False)[0]
 
-        _, _, _, _, _, node_coords = pp.map_geometry.map_grid(
-                subdomain, data.get("deviation_from_plane_tol", 1e-5)
-            )
+        _, _, _, _, _, node_coords = pp.map_geometry.map_grid(subdomain)
+
+        # Allocate the data to store matrix entries, that's the most efficient
+        # way to create a sparse matrix.
+        size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
+        rows_I = np.empty(size, dtype=int)
+        cols_J = np.empty(size, dtype=int)
+        data_IJ = np.empty(size)
+        idx = 0
+
+        cell_nodes = subdomain.cell_nodes()
+
+        local_A = self.__quick_local_A if order <= 1 else self.__integrate_local_A
+
+        for c in np.arange(subdomain.num_cells):
+            # For the current cell retrieve its nodes
+            loc = slice(cell_nodes.indptr[c], cell_nodes.indptr[c + 1])
+
+            nodes_loc = cell_nodes.indices[loc]
+            coord_loc = node_coords[:, nodes_loc]
+
+
+            # Compute the stiff-H1 local matrix
+            A = local_A(coord_loc, psi[nodes_loc], model_data, order)
+
+            # Save values for stiff-H1 local matrix in the global structure
+            cols = np.tile(nodes_loc, (nodes_loc.size, 1))
+            loc_idx = slice(idx, idx + cols.size)
+            rows_I[loc_idx] = cols.T.ravel()
+            cols_J[loc_idx] = cols.ravel()
+            data_IJ[loc_idx] = A.ravel()
+            idx += cols.size
+
+        # Construct the global matrices
+        return sps.csc_matrix((data_IJ, (rows_I, cols_J)))
+    
+
+    # Assemble the mass matrix of RT0 elements with the conductivity tensor
+    def mass_matrix_RT0_conductivity(self, tensor):
+        """
+        Assemble the RT0 mass matrix (with the conductivity tensor). The result is NOT cached.
+        """
+        _, data = self.mdg.subdomains(return_data=True)[0]
+        data[pp.PARAMETERS][self.key].update({"second_order_tensor": tensor})
         
-        dim = subdomain.dim
-        
-        node_coords = node_coords[: dim, :]
-
-        self.RT0._compute_cell_face_to_opposite_node(subdomain, data)
-        cell_face_to_opposite_node = data[self.RT0.cell_face_to_opposite_node]
-        
-        size_A = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
-        rows_A = np.empty(size_A, dtype=int)
-        cols_A = np.empty(size_A, dtype=int)
-        data_A = np.empty(size_A)
-        idx_A = 0
-
-        for c in range(subdomain.num_cells):
-            # For the current cell retrieve its faces
-            loc = slice(subdomain.cell_faces.indptr[c], subdomain.cell_faces.indptr[c + 1])
-            faces_loc = faces[loc]
-        
-            # Get the opposite node id for each face (BUGGED)
-            # node = cell_face_to_opposite_node[c, :]
-            node = np.flip(np.sort(cell_face_to_opposite_node[c, :]))
-
-            coord_loc = node_coords[:, node]
-
-            #print( 'Face: ' + str(faces_loc) + ', Sign: ' + str(sign[loc]) + ', Node: ' + str(node))
-            #print(coord_loc)
-
-            A = self.__local_q(coord_loc, sign[loc], K11_func, K12_func, K21_func, K22_func)
-
-            # Save values for Hdiv-mass local matrix in the global structure
-            cols = np.concatenate(faces_loc.size * [[faces_loc]])
-            loc_idx = slice(idx_A, idx_A + A.size)
-            rows_A[loc_idx] = cols.T.ravel()
-            cols_A[loc_idx] = cols.ravel()
-            data_A[loc_idx] = A.ravel()
-            idx_A += A.size
-
-            #print('')
-        
-        return sps.coo_matrix((data_A, (rows_A, cols_A)))
-        
+        return pg.face_mass(self.mdg, self.RT0, keyword=self.key)
     
 
     # Assemble the divergence matrix for RT0/P0
@@ -272,105 +388,249 @@ class Matrix_Computer:
         Assemble the divergence of RT0 elements into a matrix
         """
         return pg.div(self.mdg)
-    
 
     # Assemble the mixed matrix (scalar, div(vect))_{\Omega} for RT0/P0
     def matrix_B(self):
         """
         Assemle the B matrix (product between P0 and the divergence of RT0 )
         """
-        if self.B is None:
-            self.B = - (self.mass_matrix_P0()[0] @ pg.div(self.mdg)).tocsc()
-        return self.B
+        # https://stackoverflow.com/a/610923
+        try:
+            return self.B
+        except AttributeError:
+            self.B = - (self.mass_matrix_P0() @ pg.div(self.mdg)).tocsc()
+            return self.B
     
 
     # Prepare the assembly of matrix C for the Newton method with RT0 elements
-    def __setup_C(self):
+    def __setup_dual_C(self):
         """
         Prepare the common requirments to compute the C matrix (same as mass matrix of RT0, with the derivative of the inverse hydraulic conductivity)
         """
-        if not self.prepared_C:
-            self.prepared_C = True
+        if not self.prepared_dual_C:
+            self.prepared_dual_C = True
         else:
             return
         
-        self.HB = []
-        self.node_coords = []
-        self.faces = []
-        self.sign = []
-        self.size_A = []
-        self.cell_face_to_opposite_node = []
+        subdomain, data = self.mdg.subdomains(return_data=True)[0]
+        dim = subdomain.dim
 
-        for sd, data in self.mdg.subdomains(return_data=True):
-            size_HB = sd.dim * (sd.dim + 1)
-            self.HB.append( np.zeros((size_HB, size_HB)) )
-            for it in np.arange(0, size_HB, sd.dim):
-                self.HB[-1] += np.diagflat(np.ones(size_HB - it), it)
-            self.HB[-1] += self.HB[-1].T
-            self.HB[-1] /= sd.dim * sd.dim * (sd.dim + 1) * (sd.dim + 2)
+        size_HB = dim * (dim + 1)
+        self.HB = np.zeros((size_HB, size_HB))
+        for it in np.arange(0, size_HB, dim):
+            self.HB += np.diagflat(np.ones(size_HB - it), it)
+        self.HB += self.HB[-1].T
+        self.HB /= dim * dim * (dim + 1) * (dim + 2)
         
-            deviation_from_plane_tol = data.get("deviation_from_plane_tol", 1e-5)
-            _, _, _, _, _, node_coords = pp.map_geometry.map_grid(sd, deviation_from_plane_tol)
+        deviation_from_plane_tol = data.get("deviation_from_plane_tol", 1e-5)
+        _, _, _, _, _, node_coords = pp.map_geometry.map_grid(subdomain, deviation_from_plane_tol)
 
-            self.node_coords.append( node_coords )
+        self.node_coords = node_coords
 
-            faces, cells, sign = sps.find(sd.cell_faces)
-            index = np.argsort(cells)
+        faces, cells, sign = sps.find(subdomain.cell_faces)
+        index = np.argsort(cells)
 
-            self.faces.append( faces[index] )
-            self.sign.append( sign[index] )
+        self.faces = faces[index]
+        self.sign  = sign[index]
 
-            self.RT0._compute_cell_face_to_opposite_node(sd, data)
-            self.cell_face_to_opposite_node.append( data["rt0_class_cell_face_to_opposite_node"] )
+        self.RT0._compute_cell_face_to_opposite_node(subdomain, data)
+        self.cell_face_to_opposite_node = data["rt0_class_cell_face_to_opposite_node"]
 
-            self.size_A.append( np.power(sd.dim + 1, 1) * sd.num_cells )
+        self.size_A = np.power(subdomain.dim + 1, 1) * subdomain.num_cells
 
 
     # Assemble the matrix C for the Newton method with RT0 elements
-    def C(self, model_data, psi, q):
+    def dual_C(self, model_data, psi, q):
         """
         Assemble the C matrix (same as mass matrix of RT0, with the derivative of the inverse hydraulic conductivity).
         It will firstly call the setup function, if it was not called before.
         """
-        self.__setup_C()
+        self.__setup_dual_C()
 
-        res = []
-        for size_A, sd_data, faces, sign, cell_face_to_opposite_node, node_coords, HB in zip(self.size_A, self.mdg.subdomains(return_data=True), self.faces, self.sign, self.cell_face_to_opposite_node, self.node_coords, self.HB):
-            sd, data = sd_data
-            
-            cond_inv_coeff = model_data.inverse_hydraulic_conductivity_coefficient(psi, 1)
+        subdomain, data = self.mdg.subdomains(return_data=True)[0]
 
-            rows_A = np.empty(size_A, dtype=int)
-            cols_A = np.empty(size_A, dtype=int)
-            data_A = np.empty(size_A)
-            idx_A = 0
+        cond_inv_coeff = model_data.inverse_hydraulic_conductivity_coefficient(psi, 1)
 
-            data[pp.PARAMETERS].update({"second_order_tensor": np.ones(sd.num_cells)})
+        rows_A = np.empty(self.size_A, dtype=int)
+        cols_A = np.empty(self.size_A, dtype=int)
+        data_A = np.empty(self.size_A)
+        idx_A = 0
 
-            for c in np.arange(sd.num_cells):
-                loc = slice(sd.cell_faces.indptr[c], sd.cell_faces.indptr[c + 1])
-                faces_loc = faces[loc]
+        data[pp.PARAMETERS].update({"second_order_tensor": np.ones(subdomain.num_cells)})
+
+        for c in np.arange(subdomain.num_cells):
+            loc = slice(subdomain.cell_faces.indptr[c], subdomain.cell_faces.indptr[c + 1])
+            faces_loc = self.faces[loc]
                 
-                node = cell_face_to_opposite_node[c, :]
-                coord_loc = node_coords[:, node]
+            node = self.cell_face_to_opposite_node[c, :]
+            coord_loc = self.node_coords[:, node]
 
-                A = pp.RT0.massHdiv(
-                    np.eye(sd.dim),
-                    sd.cell_volumes[c],
-                    coord_loc,
-                    sign[loc],
-                    sd.dim,
-                    HB,
-                )
+            A = pp.RT0.massHdiv(
+                np.eye(subdomain.dim),
+                subdomain.cell_volumes[c],
+                coord_loc,
+                self.sign[loc],
+                subdomain.dim,
+                self.HB,
+            )
 
-                # Save values for Hdiv-mass local matrix in the global structure
-                loc_idx = range(idx_A, idx_A + sd.dim + 1)
-                rows_A[loc_idx] = faces_loc
-                cols_A[loc_idx] = c
-                data_A[loc_idx] = (A @ q[faces_loc]).ravel() * cond_inv_coeff[c] / sd.cell_volumes[c]
+            # Save values for Hdiv-mass local matrix in the global structure
+            loc_idx = range(idx_A, idx_A + subdomain.dim + 1)
+            rows_A[loc_idx] = faces_loc
+            cols_A[loc_idx] = c
+            data_A[loc_idx] = (A @ q[faces_loc]).ravel() * cond_inv_coeff[c] / subdomain.cell_volumes[c]
                 
-                idx_A += (sd.dim + 1)
+            idx_A += (subdomain.dim + 1)
 
-            res.append( sps.coo_matrix((data_A, (rows_A, cols_A))).tocsc() )
-            
-        return res
+        return sps.coo_matrix((data_A, (rows_A, cols_A))).tocsc()
+
+
+
+
+    def __find_ordering(self, coord: np.array):
+        lx = np.argmin(coord[0, :])
+        rx = np.argmax(coord[0, :])
+        mx = np.setdiff1d(np.array([0,1,2]), np.array([lx, rx]))[0]
+
+        # Vertical Alignment
+        if np.abs( coord[0, lx] - coord[0, mx] ) < 1e-7:
+            # lx and mx vertical aligned, rx no
+            up =   lx if np.argmax(coord[1, np.array([lx, mx])]) == 0 else mx
+            down = lx if np.argmin(coord[1, np.array([lx, mx])]) == 0 else mx
+
+            if np.abs( coord[1, up] - coord[1, rx] ) < 1e-7:
+                return [up, down, rx]
+            else:
+                return [down, rx, up]
+        else:
+            # rx and mx vertical aligned, lx no
+            up =   rx if np.argmax(coord[1, np.array([rx, mx])]) == 0 else mx
+            down = rx if np.argmin(coord[1, np.array([rx, mx])]) == 0 else mx
+
+            if np.abs( coord[1, up] - coord[1, lx] ) < 1e-7:
+                return [up, lx, down]
+            else:
+                return [down, up, lx]
+
+
+
+
+    def __integrate_primal_local_C(self, coord, model_data, psi, order = 2):
+
+        ordering = self.__find_ordering(coord)
+
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
+        
+        J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
+                            [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
+
+        diff = coord[:, ordering]
+
+        diff[0, :] -= diff[0,0]
+        diff[1, :] -= diff[1,0]
+        
+
+        q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
+        m_funcs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
+
+        jacobian = 1 / np.linalg.det( J_T_1_T.T )
+        ordered_psi = psi[ordering]
+
+        psi_fun = lambda x,y: ordered_psi[0] + (ordered_psi[1] - ordered_psi[0]) * x + (ordered_psi[2] - ordered_psi[0]) * y
+        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(np.array([psi_fun(x,y)]), 1)[0]
+
+        grad_psi = q_funcs[0] * ordered_psi[0] + q_funcs[1] * ordered_psi[1] + q_funcs[2] * ordered_psi[2]
+
+        M = np.zeros(shape=(3,3))
+
+        for i in range(3):
+            for j in range(3):
+                integrand = lambda ys, x: np.array( [ kappa(x,y) * m_funcs[j](x,y) for y in np.array(ys)]  )
+                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
+                tmp = integrate.fixed_quad(inside, 0, 1, n=order, args=(order,))[0]
+
+                M[ ordering[i], ordering[j] ] = jacobian * tmp * q_funcs[j].T @ grad_psi
+        
+        return M
+    
+    def __quick_primal_local_C(self, coord, model_data, psi, order = 0):
+
+        ordering = self.__find_ordering(coord)
+
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
+        
+        J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
+                            [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
+
+        diff = coord[:, ordering]
+
+        diff[0, :] -= diff[0,0]
+        diff[1, :] -= diff[1,0]
+        
+
+        q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
+        m_funcs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
+
+        jacobian = 1 / np.linalg.det( J_T_1_T.T )
+        ordered_psi = psi[ordering]
+
+        kappa = model_data.hydraulic_conductivity_coefficient(np.array([np.mean(psi)]), 1)[0]
+
+        grad_psi = q_funcs[0] * ordered_psi[0] + q_funcs[1] * ordered_psi[1] + q_funcs[2] * ordered_psi[2]
+
+        M = np.zeros(shape=(3,3))
+
+        for i in range(3):
+            for j in range(3):
+                integrand = lambda ys, x: np.array( [ m_funcs[j](x,y) for y in np.array(ys)]  )
+                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
+                tmp = integrate.fixed_quad(inside, 0, 1, n=1, args=(1,))[0]
+
+                M[ ordering[i], ordering[j] ] = jacobian * kappa * tmp * q_funcs[j].T @ grad_psi
+        
+        return M
+
+
+    def primal_C(self, model_data, psi, quad_order = 0):
+        subdomain, data = self.mdg.subdomains(return_data=True)[0]
+
+        # Map the domain to a reference geometry (i.e. equivalent to compute
+        # surface coordinates in 1d and 2d)
+        _, _, _, _, _, node_coords = pp.map_geometry.map_grid(subdomain)
+
+        # Allocate the data to store matrix entries, that's the most efficient
+        # way to create a sparse matrix.
+        size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
+        rows_I = np.empty(size, dtype=int)
+        cols_J = np.empty(size, dtype=int)
+        data_IJ = np.empty(size)
+        idx = 0
+
+        cell_nodes = subdomain.cell_nodes()
+
+        local_C = self.__quick_primal_local_C if quad_order <= 1 else self.__integrate_primal_local_C
+
+        for c in np.arange(subdomain.num_cells):
+            # For the current cell retrieve its nodes
+            loc = slice(cell_nodes.indptr[c], cell_nodes.indptr[c + 1])
+
+            nodes_loc = cell_nodes.indices[loc]
+            coord_loc = node_coords[:, nodes_loc]
+
+            # Compute the stiff-H1 local matrix
+            C = local_C(coord_loc, model_data, psi[nodes_loc], quad_order)
+
+            # Save values for stiff-H1 local matrix in the global structure
+            cols = np.tile(nodes_loc, (nodes_loc.size, 1))
+            loc_idx = slice(idx, idx + cols.size)
+            rows_I[loc_idx] = cols.T.ravel()
+            cols_J[loc_idx] = cols.ravel()
+            data_IJ[loc_idx] = C.ravel()
+            idx += cols.size
+
+        # Construct the global matrices
+        return sps.csc_matrix((data_IJ, (rows_I, cols_J)))
