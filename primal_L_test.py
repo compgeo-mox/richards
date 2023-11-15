@@ -28,7 +28,7 @@ dt_D = 1/16
 problem_name = 'benchmark_L_test'
 
 output_directory = 'output_evolutionary'
-report_directory = 'report_L_test'
+report_directory = 'primal_report_L_test'
 
 def initial_h_func(x):
     return 1
