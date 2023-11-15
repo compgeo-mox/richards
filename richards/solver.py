@@ -270,8 +270,6 @@ class Solver:
         return { 'fixed_rhs': fixed_rhs.copy(), 't_n_1': t_n_1}
 
     def _dual_L_scheme_method_step(self, preparation, k, prev):
-        print('Dual')
-
         dof_P0 = self.computer.dof_P0
         dt = self.model_data.dt
 

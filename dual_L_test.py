@@ -140,7 +140,7 @@ def variable_L():
         prefixes.append('VARL_' + str(L_value) + '_steps_' + str(steps))
 
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
-    run_experiments(L_values, prefixes, [10, 20], model_data)
+    run_experiments(L_values, prefixes, [20], model_data)
 
 def variable_N():
     steps = 9
