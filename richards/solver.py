@@ -301,9 +301,6 @@ class Solver:
         return ls.solve()
 
     def _primal_L_scheme_method_step(self, preparation, k, prev):
-
-        print('Primal solver...')
-
         dt = self.model_data.dt
 
         M = self.computer.mass_matrix_P1()
