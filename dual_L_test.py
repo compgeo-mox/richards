@@ -80,18 +80,18 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
             "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
         })
 
-        bc_value.append(lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d))
+        bc_value = lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d)
 
         essential_pressure_dofs = np.zeros(P0.ndof(subdomain), dtype=bool)
-        bc_essential.append(np.hstack((gamma_n, essential_pressure_dofs)))
+        bc_essential = np.hstack((gamma_n, essential_pressure_dofs))
 
     if os.path.exists(output_directory):
         shutil.rmtree(output_directory)
 
     ### PREPARE SOLVER DATA
     cp = Matrix_Computer(mdg)
-    initial_solution = np.zeros(cp.dof_RT0[0] + cp.dof_P0[0])
-    initial_solution[-cp.dof_P0[0]:] += np.hstack(initial_pressure)
+    initial_solution = np.zeros(cp.dof_RT0 + cp.dof_P0)
+    initial_solution[-cp.dof_P0:] += np.hstack(initial_pressure)
 
     solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
@@ -100,7 +100,7 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
                             report_name=prefix_file_name, report_directory=report_output_directory,
                             step_output_allowed=False)
 
-    solver_data.set_rhs_vector_q(lambda t: np.hstack(list(cond(t) for cond in bc_value)))
+    solver_data.set_rhs_vector_q(lambda t: bc_value(t))
 
     ### PREPARE SOLVER
     start = time.time()
@@ -165,7 +165,7 @@ def variable_dt():
             prefixes.append('VART_' + str(pref) + '_steps_' + str(step))
         
         model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=step)
-        run_experiments(L_values, prefixes, [10, 20], model_data)
+        run_experiments(L_values, prefixes, [20], model_data)
 
 
 
