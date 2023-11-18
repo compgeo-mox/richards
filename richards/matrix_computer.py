@@ -487,34 +487,6 @@ class Matrix_Computer:
 
 
 
-    def __find_ordering(self, coord: np.array):
-        lx = np.argmin(coord[0, :])
-        rx = np.argmax(coord[0, :])
-        mx = np.setdiff1d(np.array([0,1,2]), np.array([lx, rx]))[0]
-
-        # Vertical Alignment
-        if np.abs( coord[0, lx] - coord[0, mx] ) < 1e-7:
-            # lx and mx vertical aligned, rx no
-            up =   lx if np.argmax(coord[1, np.array([lx, mx])]) == 0 else mx
-            down = lx if np.argmin(coord[1, np.array([lx, mx])]) == 0 else mx
-
-            if np.abs( coord[1, up] - coord[1, rx] ) < 1e-7:
-                return [up, down, rx]
-            else:
-                return [down, rx, up]
-        else:
-            # rx and mx vertical aligned, lx no
-            up =   rx if np.argmax(coord[1, np.array([rx, mx])]) == 0 else mx
-            down = rx if np.argmin(coord[1, np.array([rx, mx])]) == 0 else mx
-
-            if np.abs( coord[1, up] - coord[1, lx] ) < 1e-7:
-                return [up, lx, down]
-            else:
-                return [down, up, lx]
-
-
-
-
     def __integrate_primal_local_C(self, coord, model_data, psi, order = 2):
 
         ordering = self.__find_ordering(coord)
