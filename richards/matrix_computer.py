@@ -548,7 +548,7 @@ class Matrix_Computer:
                 #integrand = lambda ys, x: np.array( [ m_funcs[j](x,y) for y in np.array(ys)]  )
                 #inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
                 
-                M[ ordering[i], ordering[j] ] = jacobian * kappa * tmp * q_funcs[i].T @ grad_psi / 6
+                M[ ordering[i], ordering[j] ] = jacobian * kappa * q_funcs[i].T @ grad_psi / 6
         
         return M
 

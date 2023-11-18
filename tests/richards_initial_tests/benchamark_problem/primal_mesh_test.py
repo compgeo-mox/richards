@@ -66,7 +66,7 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
                               output_directory=output_directory, L_Scheme_value=L_Value,
                               report_name=prefix_file_name, report_directory=report_output_directory,
                               step_output_allowed=False,
-                              primal=True, integration_order=1)
+                              primal=True, integration_order=3)
 
     ### PREPARE SOLVER
     start = time.time()
