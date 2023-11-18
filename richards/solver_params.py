@@ -11,7 +11,7 @@ class Solver_Enum(Enum):
 class Solver_Data:
     def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, 
                  L_Scheme_value=None, output_directory='output', report_directory='report', report_name=None, step_output_allowed=True, primal=False, 
-                 bc_essential_value = None, integration_order = 0):
+                 bc_essential_value = None, integration_order = 0, prepare_plots = False, shape_x=None, shape_y=None):
         self.mdg = mdg
         self.initial_solution = initial_solution
         self.output_directory = output_directory
@@ -34,6 +34,12 @@ class Solver_Data:
         self.primal = primal
 
         self.integration_order = integration_order
+        self.prepare_plots = prepare_plots
+
+        if self.prepare_plots and (shape_x == None or shape_y == None):
+            print('The plots will not be performed without a provided shape')
+        self.shape_x = shape_x
+        self.shape_y = shape_y
 
         self.rhs_func_q = None
         self.rhs_func_psi = None

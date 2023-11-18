@@ -197,7 +197,7 @@ class Matrix_Computer:
     # Assemble the mass matrix of P1 elements
     def mass_matrix_P1_dtheta(self, model_data, psi, quad_order = 0):
         """
-        Assemble (and store internally) the P0 mass matrix
+        Assemble (and store internally) the P1 mass matrix
         """
 
         subdomain = self.mdg.subdomains(return_data=False)[0]
@@ -498,12 +498,6 @@ class Matrix_Computer:
         J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
                             [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
 
-        diff = coord[:, ordering]
-
-        diff[0, :] -= diff[0,0]
-        diff[1, :] -= diff[1,0]
-        
-
         q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
         m_funcs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
 
@@ -523,7 +517,7 @@ class Matrix_Computer:
                 inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
                 tmp = integrate.fixed_quad(inside, 0, 1, n=order, args=(order,))[0]
 
-                M[ ordering[i], ordering[j] ] = jacobian * tmp * q_funcs[j].T @ grad_psi
+                M[ ordering[i], ordering[j] ] = jacobian * tmp * q_funcs[i].T @ grad_psi
         
         return M
     
@@ -538,14 +532,7 @@ class Matrix_Computer:
         J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
                             [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
 
-        diff = coord[:, ordering]
-
-        diff[0, :] -= diff[0,0]
-        diff[1, :] -= diff[1,0]
-        
-
         q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
-        m_funcs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
 
         jacobian = 1 / np.linalg.det( J_T_1_T.T )
         ordered_psi = psi[ordering]
@@ -558,11 +545,10 @@ class Matrix_Computer:
 
         for i in range(3):
             for j in range(3):
-                integrand = lambda ys, x: np.array( [ m_funcs[j](x,y) for y in np.array(ys)]  )
-                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
-                tmp = integrate.fixed_quad(inside, 0, 1, n=1, args=(1,))[0]
-
-                M[ ordering[i], ordering[j] ] = jacobian * kappa * tmp * q_funcs[j].T @ grad_psi
+                #integrand = lambda ys, x: np.array( [ m_funcs[j](x,y) for y in np.array(ys)]  )
+                #inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
+                
+                M[ ordering[i], ordering[j] ] = jacobian * kappa * tmp * q_funcs[i].T @ grad_psi / 6
         
         return M
 

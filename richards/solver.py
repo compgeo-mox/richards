@@ -12,6 +12,8 @@ from richards.csv_exporter import Csv_Exporter
 from richards.model_params import Model_Data
 from richards.matrix_computer import Matrix_Computer
 
+from richards.plot_exporter import Plot_Exporter
+
 import porepy as pp
 import pygeon as pg
 
@@ -47,27 +49,41 @@ class Solver:
         if self.solver_data.report_name is not None:
             return self.solver_data.report_name + '_' + suffix
         return suffix
+    
 
+
+    def __export_plot(self, sol, filename):
+        if self.primal:
+            self.plotter.export_surface( self.subdomain.nodes[0, :], self.subdomain.nodes[1, :], sol, filename, self.solver_data.shape_x, self.solver_data.shape_y)
+        else:
+            print('Plots are available only for the primal formualtion!')
 
 
     def solve(self, max_iterations_per_step_override = None):
-
         if max_iterations_per_step_override is not None:
             backup_step = self.solver_data.max_iterations_per_step
             self.solver_data.max_iterations_per_step = max_iterations_per_step_override
 
+        if self.solver_data.prepare_plots:
+            self.plotter = Plot_Exporter(self.solver_data.output_directory)
 
         if self.solver_data.step_output_allowed:
             step_exporter = Step_Exporter(self.solver_data.mdg, "sol", self.solver_data.output_directory, primal=self.primal)
             sol = [self.solver_data.initial_solution]
             step_exporter.export( sol[-1] )
+
+            if self.solver_data.prepare_plots:
+                self.__export_plot(sol[-1], '0')
+            
         else:
             sol = self.solver_data.initial_solution
+
+            if self.solver_data.prepare_plots:
+                self.__export_plot(sol, '0')
 
         csv_exporter = Csv_Exporter(self.solver_data.report_directory, 
                                     self.__exporter_name(Solver_Enum(self.solver_data.scheme).name + '_richards_solver.csv'), 
                                     ['time_instant', 'iteration', 'absolute_error_norm' , 'relative_error_norm'])
-
 
         method = self.__get_method(self.solver_data.scheme)
 
@@ -81,8 +97,15 @@ class Solver:
             if self.solver_data.step_output_allowed:
                 sol.append( method(sol[-1], instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_exporter) )
                 step_exporter.export(sol[-1])
+                self.__export_solution_csv(sol[-1], str(step))
+
+                if self.solver_data.prepare_plots:
+                    self.__export_plot(sol[-1], str(step))
             else:
                 sol = method(sol, instant, self.solver_data.eps_psi_abs, self.solver_data.eps_psi_rel, csv_exporter)
+
+                if self.solver_data.prepare_plots:
+                    self.__export_plot(sol, str(step))
 
         if self.solver_data.step_output_allowed:    
             step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
@@ -155,6 +178,18 @@ class Solver:
 
         if self.solver_data.step_output_allowed:
             step_exporter.export_final_pvd(np.array(range(0, self.model_data.num_steps + 1)) * self.model_data.dt)
+
+
+
+    def __export_solution_csv(self, sol, filename):
+        exporter = Csv_Exporter( os.path.join(self.solver_data.output_directory, 'csv'), filename + '.csv', ['x', 'y', 'h'], True)
+
+        if self.solver_data.primal:
+            for x, y, h in zip(self.subdomain.nodes[0, :], self.subdomain.nodes[1, :], sol):
+                exporter.add_entry([x,y,h])
+        else:
+            for x, y, h in zip(self.subdomain.cell_centers[0, :], self.subdomain.cell_centers[1, :], sol[-self.computer.dof_P0:]):
+                exporter.add_entry([x,y,h])
 
 
 
@@ -262,7 +297,7 @@ class Solver:
         # Theta^n
         if self.solver_data.primal:
             adj_psi = sol_n - self.subdomain.nodes[1, :]
-            fixed_rhs += self.computer.mass_matrix_P1() @ self.computer.project_function_to_P1(self.model_data.theta( adj_psi ) ) / self.model_data.dt
+            fixed_rhs += self.computer.mass_matrix_P1() @ self.model_data.theta( adj_psi ) / self.model_data.dt
         else:
             adj_psi = self.computer.project_P0_to_solution( sol_n[-self.computer.dof_P0:] ) - self.subdomain.cell_centers[1, :]
             fixed_rhs[-self.computer.dof_P0:] += self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta( adj_psi ) ) / self.model_data.dt
