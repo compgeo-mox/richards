@@ -42,7 +42,6 @@ WORKDIR ${MY_DIR}
 COPY richards richards
 COPY tests tests
 
-# https://github.com/exaloop/codon
-RUN curl -fsSL https://exaloop.io/install.sh
+ENV PYTHONPATH "${PYTHONPATH}:/workspaces/richards"
 
 CMD bash
