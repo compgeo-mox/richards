@@ -1,8 +1,11 @@
-import porepy as pp
-import pygeon as pg
+from utilities.triangle_integration import triangle_integration
+from utilities.assembly_utilities import find_ordering
+
 import numpy as np
 import scipy.sparse as sps
-import scipy.integrate as integrate
+
+import porepy as pp
+import pygeon as pg
 
 # Simple class used to compute the relevant matrices to be used with the FEM formulation
 class Matrix_Computer:
@@ -159,7 +162,7 @@ class Matrix_Computer:
     
 
     def __integrate_local_mass_dtheta(self, model_data, coord, psi, quad):
-        ordering = self.__find_ordering(coord)
+        ordering = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]
@@ -179,11 +182,7 @@ class Matrix_Computer:
 
         for i in range(3):
             for j in range(3):
-                integrand = lambda ys,x: np.array([qs[j](x,y) * qs[i](x,y) * func(x,y) for y in np.array(ys)])
-                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
-                tmp = integrate.fixed_quad(inside, 0, 1, n=quad, args=(quad,))[0]
-
-                M[ ordering[i], ordering[j] ] = tmp * jacobian
+                M[ ordering[i], ordering[j] ] = jacobian * triangle_integration( lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x,y), quad)
 
         return M
     
@@ -240,37 +239,12 @@ class Matrix_Computer:
         
 
         
-
-    def __find_ordering(self, coord: np.array):
-        lx = np.argmin(coord[0, :])
-        rx = np.argmax(coord[0, :])
-        mx = np.setdiff1d(np.array([0,1,2]), np.array([lx, rx]))[0]
-
-        # Vertical Alignment
-        if np.abs( coord[0, lx] - coord[0, mx] ) < 1e-7:
-            # lx and mx vertical aligned, rx no
-            up =   lx if np.argmax(coord[1, np.array([lx, mx])]) == 0 else mx
-            down = lx if np.argmin(coord[1, np.array([lx, mx])]) == 0 else mx
-
-            if np.abs( coord[1, up] - coord[1, rx] ) < 1e-7:
-                return [up, down, rx]
-            else:
-                return [down, rx, up]
-        else:
-            # rx and mx vertical aligned, lx no
-            up =   rx if np.argmax(coord[1, np.array([rx, mx])]) == 0 else mx
-            down = rx if np.argmin(coord[1, np.array([rx, mx])]) == 0 else mx
-
-            if np.abs( coord[1, up] - coord[1, lx] ) < 1e-7:
-                return [up, lx, down]
-            else:
-                return [down, up, lx]
     
     def __integrate_local_A(self, coord, psi, model_data, order: int):
         #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
         #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
 
-        ordering = self.__find_ordering(coord)
+        ordering = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]
@@ -291,11 +265,7 @@ class Matrix_Computer:
             
         for i in range(3):
             for j in range(3):
-                integrand = lambda ys,x: np.array([model_data.hydraulic_conductivity_coefficient(np.array([psi_fun(x,y)]))[0] for y in np.array(ys)])
-                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
-                tmp = integrate.fixed_quad(inside, 0, 1, n=order, args=(order,))[0]
-
-                M[ ordering[i], ordering[j] ] = tmp * q_funcs[j].T @ q_funcs[i] * jacobian
+                M[ ordering[i], ordering[j] ] = q_funcs[j].T @ q_funcs[i] * jacobian * triangle_integration(lambda x, y: model_data.hydraulic_conductivity_coefficient(np.array([psi_fun(x,y)]))[0], order)
 
         return M
     
@@ -303,7 +273,7 @@ class Matrix_Computer:
         #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
         #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
 
-        ordering = self.__find_ordering(coord)
+        ordering = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]
@@ -489,7 +459,7 @@ class Matrix_Computer:
 
     def __integrate_primal_local_C(self, coord, model_data, psi, order = 2):
 
-        ordering = self.__find_ordering(coord)
+        ordering = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]
@@ -513,17 +483,13 @@ class Matrix_Computer:
 
         for i in range(3):
             for j in range(3):
-                integrand = lambda ys, x: np.array( [ kappa(x,y) * m_funcs[j](x,y) for y in np.array(ys)]  )
-                inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
-                tmp = integrate.fixed_quad(inside, 0, 1, n=order, args=(order,))[0]
-
-                M[ ordering[i], ordering[j] ] = jacobian * tmp * q_funcs[i].T @ grad_psi
+                M[ ordering[i], ordering[j] ] = jacobian * q_funcs[i].T @ grad_psi * triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order)
         
         return M
     
     def __quick_primal_local_C(self, coord, model_data, psi, order = 0):
 
-        ordering = self.__find_ordering(coord)
+        ordering = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]
@@ -545,9 +511,6 @@ class Matrix_Computer:
 
         for i in range(3):
             for j in range(3):
-                #integrand = lambda ys, x: np.array( [ m_funcs[j](x,y) for y in np.array(ys)]  )
-                #inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 0, 1-x, args=(x,), n=n)[0] for x in np.array(xs)])
-                
                 M[ ordering[i], ordering[j] ] = jacobian * kappa * q_funcs[i].T @ grad_psi / 6
         
         return M

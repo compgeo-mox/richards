@@ -1,5 +1,5 @@
 import numpy as np
-from utilities.triangle_integration import triangle_integration
+from utilities.triangle_integration import triangle_integration, exp_triangle_integration
 
 # Helper function used obtain the ordering of the points of a right triangle from the node opposite to the hypotenuse in a clockwise manner.
 def find_ordering(coord: np.array):
@@ -52,6 +52,27 @@ def local_A(coord, K_local, quad_order):
 
     return M
 
+# Simple matrix used to compute the local contribution to the h-stifness matrix.
+# We assume that the element is triangular
+def experimental_local_A(coord, K_local, quad_order, m):
+    M = np.zeros(shape=(3,3))
+
+    ordering = find_ordering(coord)
+
+    x0 = coord[:, ordering][:, 0]
+    x1 = coord[:, ordering][:, 1]
+    x2 = coord[:, ordering][:, 2]
+
+    q_funcs = [np.array([-1/(x2[0] - x0[0]), -1/(x1[1] - x0[1])]), 
+               np.array([0, 1/(x1[1] - x0[1])]), 
+               np.array([1/(x2[0] - x0[0]), 0])]
+
+    for i in range(3):
+            for j in range(3):
+                M[ordering[i], ordering[j]] = exp_triangle_integration(lambda x,y: q_funcs[j].T @ K_local(x,y) @ q_funcs[i], quad_order, x0, x1, x2, m)
+
+    return M
+
 
 # Simple matrix used to compute the local contribution to the h-mass matrix.
 # We assume that the element is triangular
@@ -70,6 +91,28 @@ def local_Mh(coord, func, quad_order):
     for i in range(3):
         for j in range(3):
             M[ ordering[i], ordering[j] ] = jacobian * triangle_integration(lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x, y), quad_order)
+
+    return M
+
+
+# Simple matrix used to compute the local contribution to the h-mass matrix.
+# We assume that the element is triangular
+def experimental_local_Mh(coord, func, quad_order, m):
+    ordering = find_ordering(coord)
+
+    x0 = coord[:, ordering][:, 0]
+    x1 = coord[:, ordering][:, 1]
+    x2 = coord[:, ordering][:, 2]
+
+    qs = [(lambda x,y: 1 - (y-x0[1])/(x1[1] - x0[1]) - (x-x0[0])/(x2[0] - x0[0])), 
+          (lambda x,y: (y-x0[1])/(x1[1] - x0[1])), 
+          (lambda x,y: (x-x0[0])/(x2[0] - x0[0]))]
+    
+    M = np.zeros(shape=(3,3))
+
+    for i in range(3):
+        for j in range(3):
+            M[ ordering[i], ordering[j] ] = exp_triangle_integration(lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x, y), quad_order, x0, x1, x2, m)
 
     return M
 
