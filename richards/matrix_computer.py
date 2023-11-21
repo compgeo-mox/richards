@@ -161,12 +161,15 @@ class Matrix_Computer:
         
     
 
-    def __integrate_local_mass_dtheta(self, model_data, coord, psi, quad):
+    def __integrate_local_mass_dtheta(self, model_data, coord, h, quad):
         ordering = find_ordering(coord)
 
-        x0 = coord[:, ordering][:, 0]
-        x1 = coord[:, ordering][:, 1]
-        x2 = coord[:, ordering][:, 2]
+        ordered_coord = coord[:, ordering]
+        ordered_h = h[ordering]
+
+        x0 = ordered_coord[:, 0]
+        x1 = ordered_coord[:, 1]
+        x2 = ordered_coord[:, 2]
 
         qs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
         
@@ -176,9 +179,10 @@ class Matrix_Computer:
         jacobian = np.linalg.det(J)
         M = np.zeros(shape=(3,3))
 
-        ordered_psi = psi[ordering]
-        psi_fun = lambda x,y: ordered_psi[0] + (ordered_psi[1] - ordered_psi[0]) * x + (ordered_psi[2] - ordered_psi[0]) * y
-        func = lambda x,y: model_data.theta(np.array([psi_fun(x,y)]), 1)[0]
+        h_fun   = lambda x,y: ordered_h[0] + (ordered_h[1] - ordered_h[0]) * x + (ordered_h[2] - ordered_h[0]) * y
+        pos_fun = lambda x,y: x0[1] + (x1[1] - x0[1]) * x + (x2[1] - x0[1]) * y
+
+        func = lambda x,y: model_data.theta(np.array([h_fun(x,y)]), np.array([pos_fun(x,y)]), 1)[0]
 
         for i in range(3):
             for j in range(3):
@@ -186,15 +190,15 @@ class Matrix_Computer:
 
         return M
     
-    def __quick_local_mass_dtheta(self, model_data, coord, psi, quad):
+    def __quick_local_mass_dtheta(self, model_data, coord, h, quad):
         width  = np.max(coord[0, :]) - np.min(coord[0, :])
         height = np.max(coord[1, :]) - np.min(coord[1, :])
 
-        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.array([np.mean(psi)]), 1)[0]
+        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.array([np.mean(h)]), np.array([np.mean(coord[1, :])]), 1)[0]
 
         
     # Assemble the mass matrix of P1 elements
-    def mass_matrix_P1_dtheta(self, model_data, psi, quad_order = 0):
+    def mass_matrix_P1_dtheta(self, model_data, h, quad_order = 0):
         """
         Assemble (and store internally) the P1 mass matrix
         """
@@ -224,7 +228,7 @@ class Matrix_Computer:
             coord_loc = node_coords[:, nodes_loc]
 
             # Compute the stiff-H1 local matrix
-            A = local_mass(model_data, coord_loc, psi[nodes_loc], quad_order)
+            A = local_mass(model_data, coord_loc, h[nodes_loc], quad_order)
 
             # Save values for stiff-H1 local matrix in the global structure
             cols =np.tile(nodes_loc, (nodes_loc.size, 1))
@@ -240,15 +244,15 @@ class Matrix_Computer:
 
         
     
-    def __integrate_local_A(self, coord, psi, model_data, order: int):
-        #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
-        #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
-
+    def __integrate_local_A(self, coord, h, model_data, order: int):
         ordering = find_ordering(coord)
 
-        x0 = coord[:, ordering][:, 0]
-        x1 = coord[:, ordering][:, 1]
-        x2 = coord[:, ordering][:, 2]
+        ordered_coord = coord[:, ordering]
+        ordered_h = h[ordering]
+
+        x0 = ordered_coord[:, 0]
+        x1 = ordered_coord[:, 1]
+        x2 = ordered_coord[:, 2]
         
         J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
                             [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
@@ -258,18 +262,20 @@ class Matrix_Computer:
 
         M = np.zeros(shape=(3,3))
 
+        h_fun   = lambda x,y: ordered_h[0] + (ordered_h[1] - ordered_h[0]) * x + (ordered_h[2] - ordered_h[0]) * y
+        pos_fun = lambda x,y: x0[1] + (x1[1] - x0[1]) * x + (x2[1] - x0[1]) * y
+
+        func = lambda x, y: model_data.hydraulic_conductivity_coefficient(np.array([h_fun(x,y)]), np.array([pos_fun(x,y)]))[0]
+
         jacobian = 1 / np.linalg.det( J_T_1_T.T )
 
-        ordered_psi = psi[ordering]
-        psi_fun = lambda x,y: ordered_psi[0] + (ordered_psi[1] - ordered_psi[0]) * x + (ordered_psi[2] - ordered_psi[0]) * y
-            
         for i in range(3):
             for j in range(3):
-                M[ ordering[i], ordering[j] ] = q_funcs[j].T @ q_funcs[i] * jacobian * triangle_integration(lambda x, y: model_data.hydraulic_conductivity_coefficient(np.array([psi_fun(x,y)]))[0], order)
+                M[ ordering[i], ordering[j] ] = q_funcs[j].T @ q_funcs[i] * jacobian * triangle_integration(func, order)
 
         return M
     
-    def __quick_local_A(self, coord, psi, model_data, order: int):
+    def __quick_local_A(self, coord, h, model_data, order: int):
         #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
         #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
 
@@ -289,7 +295,7 @@ class Matrix_Computer:
 
         jacobian = 1 / np.linalg.det( J_T_1_T.T )
 
-        tmp = model_data.hydraulic_conductivity_coefficient( np.array([np.mean(psi)]) )[0]
+        tmp = model_data.hydraulic_conductivity_coefficient( np.array([np.mean(h)]), np.array([np.mean(coord[1, :])]) )[0]
 
         for i in range(3):
             for j in range(3):
@@ -298,7 +304,7 @@ class Matrix_Computer:
         return M
     
 
-    def stifness_matrix_P1_conductivity(self, psi, model_data, order = 0):
+    def stifness_matrix_P1_conductivity(self, h, model_data, order = 0):
         # Map the domain to a reference geometry (i.e. equivalent to compute
         # surface coordinates in 1d and 2d)
 
@@ -327,7 +333,7 @@ class Matrix_Computer:
 
 
             # Compute the stiff-H1 local matrix
-            A = local_A(coord_loc, psi[nodes_loc], model_data, order)
+            A = local_A(coord_loc, h[nodes_loc], model_data, order)
 
             # Save values for stiff-H1 local matrix in the global structure
             cols = np.tile(nodes_loc, (nodes_loc.size, 1))
@@ -410,7 +416,7 @@ class Matrix_Computer:
 
 
     # Assemble the matrix C for the Newton method with RT0 elements
-    def dual_C(self, model_data, psi, q):
+    def dual_C(self, model_data, h, q):
         """
         Assemble the C matrix (same as mass matrix of RT0, with the derivative of the inverse hydraulic conductivity).
         It will firstly call the setup function, if it was not called before.
@@ -419,7 +425,7 @@ class Matrix_Computer:
 
         subdomain, data = self.mdg.subdomains(return_data=True)[0]
 
-        cond_inv_coeff = model_data.inverse_hydraulic_conductivity_coefficient(psi, 1)
+        cond_inv_coeff = model_data.inverse_hydraulic_conductivity_coefficient(h, subdomain.cell_centers[1, :], 1)
 
         rows_A = np.empty(self.size_A, dtype=int)
         cols_A = np.empty(self.size_A, dtype=int)
@@ -457,13 +463,15 @@ class Matrix_Computer:
 
 
 
-    def __integrate_primal_local_C(self, coord, model_data, psi, order = 2):
-
+    def __integrate_primal_local_C(self, coord, model_data, h, order = 2):
         ordering = find_ordering(coord)
 
-        x0 = coord[:, ordering][:, 0]
-        x1 = coord[:, ordering][:, 1]
-        x2 = coord[:, ordering][:, 2]
+        ordered_coord = coord[:, ordering]
+        ordered_h = h[ordering]
+
+        x0 = ordered_coord[:, 0]
+        x1 = ordered_coord[:, 1]
+        x2 = ordered_coord[:, 2]
         
         J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
                             [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
@@ -472,22 +480,22 @@ class Matrix_Computer:
         m_funcs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
 
         jacobian = 1 / np.linalg.det( J_T_1_T.T )
-        ordered_psi = psi[ordering]
 
-        psi_fun = lambda x,y: ordered_psi[0] + (ordered_psi[1] - ordered_psi[0]) * x + (ordered_psi[2] - ordered_psi[0]) * y
-        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(np.array([psi_fun(x,y)]), 1)[0]
-
-        grad_psi = q_funcs[0] * ordered_psi[0] + q_funcs[1] * ordered_psi[1] + q_funcs[2] * ordered_psi[2]
+        grad_h = q_funcs[0] * ordered_h[0] + q_funcs[1] * ordered_h[1] + q_funcs[2] * ordered_h[2]
 
         M = np.zeros(shape=(3,3))
 
+        h_fun   = lambda x,y: ordered_h[0] + (ordered_h[1] - ordered_h[0]) * x + (ordered_h[2] - ordered_h[0]) * y
+        pos_fun = lambda x,y: x0[1] + (x1[1] - x0[1]) * x + (x2[1] - x0[1]) * y
+        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(np.array([h_fun(x,y)]), np.array([pos_fun(x,y)]), 1)[0]
+
         for i in range(3):
             for j in range(3):
-                M[ ordering[i], ordering[j] ] = jacobian * q_funcs[i].T @ grad_psi * triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order)
+                M[ ordering[i], ordering[j] ] = jacobian * q_funcs[i].T @ grad_h * triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order)
         
         return M
     
-    def __quick_primal_local_C(self, coord, model_data, psi, order = 0):
+    def __quick_primal_local_C(self, coord, model_data, h, order = 0):
 
         ordering = find_ordering(coord)
 
@@ -501,22 +509,22 @@ class Matrix_Computer:
         q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
 
         jacobian = 1 / np.linalg.det( J_T_1_T.T )
-        ordered_psi = psi[ordering]
+        ordered_h = h[ordering]
 
-        kappa = model_data.hydraulic_conductivity_coefficient(np.array([np.mean(psi)]), 1)[0]
+        kappa = model_data.hydraulic_conductivity_coefficient(np.array([np.mean(h)]), np.array([np.mean(coord[1, :])]), 1)[0]
 
-        grad_psi = q_funcs[0] * ordered_psi[0] + q_funcs[1] * ordered_psi[1] + q_funcs[2] * ordered_psi[2]
+        grad_h = q_funcs[0] * ordered_h[0] + q_funcs[1] * ordered_h[1] + q_funcs[2] * ordered_h[2]
 
         M = np.zeros(shape=(3,3))
 
         for i in range(3):
             for j in range(3):
-                M[ ordering[i], ordering[j] ] = jacobian * kappa * q_funcs[i].T @ grad_psi / 6
+                M[ ordering[i], ordering[j] ] = jacobian * kappa * q_funcs[i].T @ grad_h / 6
         
         return M
 
 
-    def primal_C(self, model_data, psi, quad_order = 0):
+    def primal_C(self, model_data, h, quad_order = 0):
         subdomain, data = self.mdg.subdomains(return_data=True)[0]
 
         # Map the domain to a reference geometry (i.e. equivalent to compute
@@ -543,7 +551,7 @@ class Matrix_Computer:
             coord_loc = node_coords[:, nodes_loc]
 
             # Compute the stiff-H1 local matrix
-            C = local_C(coord_loc, model_data, psi[nodes_loc], quad_order)
+            C = local_C(coord_loc, model_data, h[nodes_loc], quad_order)
 
             # Save values for stiff-H1 local matrix in the global structure
             cols = np.tile(nodes_loc, (nodes_loc.size, 1))
