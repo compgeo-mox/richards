@@ -274,7 +274,7 @@ class Plot_Exporter:
 
         self.color_map = LinearSegmentedColormap.from_list('parula', cm_data)
 
-    def export_surface(self, x, y, sol, filename, shape_x, shape_y):
+    def export_surface(self, x, y, sol, filename, shape_x, shape_y, show=False):
         fig = plt.figure(figsize=(7, 10))
         ax = fig.subplots(1,1)
         
@@ -283,3 +283,6 @@ class Plot_Exporter:
         cbar = fig.colorbar(CS)
         
         plt.savefig(os.path.join(self.path, filename + '.eps'), format='eps')
+
+        if show:
+            plt.show()
