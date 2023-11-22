@@ -36,11 +36,11 @@ def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper
         element_height = np.max(coord_loc[1, :]) - base_height
         m = np.prod(sign[loc])
 
-        loc_term = lambda x,y: helper_chi_func.chi_x3_eta_gen(chi_func, base_height, element_height, m, eta_dofs[eta_cell], eta_dofs[eta_cell+1], x, y)[0]
-        #print(loc_term(0, 0), loc_term(0, 1))
-
-        #loc_term = lambda x,y: 1
-
+        loc_term = lambda x,y: helper_chi_func.chi_x3_eta_gen(chi_func, 
+                                                                base_height, element_height, m, 
+                                                                eta_dofs[eta_cell], eta_dofs[eta_cell+1], 
+                                                                x, y)[0]
+                                                                
         A = local_Mh(coord_loc, loc_term, quad_order)
 
         # Save values for stiff-H1 local matrix in the global structure
@@ -56,7 +56,7 @@ def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper
     return sps.csc_matrix((data_IJ, (rows_I, cols_J)))
 
 # Assemble the h-stifness matrix for the moving domain Darcy problem
-def exp_global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func):
+def exp_global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_x3):
     size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
     rows_I = np.empty(size, dtype=int)
     cols_J = np.empty(size, dtype=int)
@@ -90,9 +90,8 @@ def exp_global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: he
         rs_eta = eta_dofs[eta_cell+1]
         eta = lambda x: ls_eta + (x - ls_node) / cell_width * (rs_eta - ls_eta)
 
-        loc_term = lambda x,y: chi_func.x3_derivative(eta(x), y)
-        #loc_term = lambda x,y: 1
-
+        loc_term = lambda x,y: chi_x3(eta(x), y)
+                                                                
         A = experimental_local_Mh(coord_loc, loc_term, quad_order, m)
 
         # Save values for stiff-H1 local matrix in the global structure

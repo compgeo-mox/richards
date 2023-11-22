@@ -48,7 +48,7 @@ def local_A(coord, K_local, quad_order):
 
     for i in range(3):
             for j in range(3):
-                M[ordering[i], ordering[j]] = area * triangle_integration(lambda x,y: q_funcs[j].T @ K_local(x, y) @ q_funcs[i], quad_order)
+                M[ordering[i], ordering[j]] = area * triangle_integration(lambda x,y: q_funcs[i].T @ K_local(x, y) @ q_funcs[j], quad_order)
 
     return M
 
@@ -69,7 +69,7 @@ def experimental_local_A(coord, K_local, quad_order, m):
 
     for i in range(3):
             for j in range(3):
-                M[ordering[i], ordering[j]] = exp_triangle_integration(lambda x,y: q_funcs[j].T @ K_local(x,y) @ q_funcs[i], quad_order, x0, x1, x2, m)
+                M[ordering[i], ordering[j]] = exp_triangle_integration(lambda x,y: q_funcs[i].T @ K_local(x,y) @ q_funcs[j], quad_order, x0, x1, x2, m)
 
     return M
 

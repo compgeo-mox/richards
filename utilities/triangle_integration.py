@@ -8,8 +8,7 @@ def triangle_integration(func, quad_order):
     return integrate.fixed_quad(inside, 0, 1, n=quad_order, args=(quad_order,))[0]
 
 def exp_triangle_integration(func, quad_order, x0, x1, x2, m):
-
-    if m == -1:
+    if m < 0:
         integrand = lambda ys,x: np.array([func(x,y) for y in np.array(ys)])
         inside = lambda xs, n: np.array([integrate.fixed_quad(integrand, 
                                                               x1[1] + (x2[1] - x1[1]) / (x2[0] - x1[0]) * (x - x1[0]), 
