@@ -468,32 +468,31 @@ class Matrix_Computer:
     def __integrate_primal_local_C(self, coord, model_data, h, order = 2):
         ordering, m = find_ordering(coord)
 
-        ordered_coord = coord[:, ordering]
         ordered_h = h[ordering]
 
-        x0 = ordered_coord[:, 0]
-        x1 = ordered_coord[:, 1]
-        x2 = ordered_coord[:, 2]
-        
-        J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
-                            [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
 
-        q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
-        m_funcs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
+        q_funcs = np.array([np.array([-1/(x2[0] - x0[0]), -1/(x1[1] - x0[1])]), 
+                np.array([0, 1/(x1[1] - x0[1])]), 
+                np.array([1/(x2[0] - x0[0]), 0])])
 
-        jacobian = 1 / np.linalg.det( J_T_1_T.T )
+        m_funcs = [(lambda x,y: 1 - (y-x0[1])/(x1[1] - x0[1]) - (x-x0[0])/(x2[0] - x0[0])), 
+              (lambda x,y: (y-x0[1])/(x1[1] - x0[1])), 
+              (lambda x,y: (x-x0[0])/(x2[0] - x0[0]))]
 
         grad_h = q_funcs[0] * ordered_h[0] + q_funcs[1] * ordered_h[1] + q_funcs[2] * ordered_h[2]
 
         M = np.zeros(shape=(3,3))
 
-        h_fun   = lambda x,y: ordered_h[0] + (ordered_h[1] - ordered_h[0]) * x + (ordered_h[2] - ordered_h[0]) * y
-        pos_fun = lambda x,y: x0[1] + (x1[1] - x0[1]) * x + (x2[1] - x0[1]) * y
-        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(np.array([h_fun(x,y)]), np.array([pos_fun(x,y)]), 1)[0]
+        h_func = lambda x,y: h[0] + (h[2] - h[0]) * (x - x0[0]) / (x2[0] - x0[0]) + (h[1] - h[0]) * (y - x0[1]) / (x1[1] - x0[1])
+        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(np.array([h_func(x,y)]), np.array([y]), 1)[0]
 
         for i in range(3):
             for j in range(3):
-                M[i, j] = jacobian * q_funcs[i].T @ grad_h * triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order)
+                M[i, j] = q_funcs[i].T @ grad_h * exp_triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order,
+                                                                           x0, x1, x2, m)
         
         sort = np.argsort(ordering)
 
