@@ -401,8 +401,10 @@ class Solver:
         rhs[-dof_h:] += D @ h / dt
 
         # construct the local matrices
+        #cond = self.model_data.hydraulic_conductivity_coefficient(self.computer.project_P0_to_solution( h ), self.subdomain.cell_centers[1, :])
         M_k_n_1 = self.computer.mass_matrix_RT0_conductivity(pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(self.computer.project_P0_to_solution( h ), self.subdomain.cell_centers[1, :])))
-            
+        #M_k_n_1 = self.computer.mass_matrix_RT0_conductivity(pp.SecondOrderTensor(kxx=3*cond, kxy=2*cond, kyy=3*cond))
+
         spp = sps.bmat([[M_k_n_1, B.T + C], 
                         [     -B,  D / dt]], format="csc")
             
@@ -496,7 +498,6 @@ class Solver:
 
         N = self.computer.mass_matrix_P1_dtheta(self.model_data, prev, self.solver_data.integration_order)
         rhs = preparation['fixed_rhs'].copy()
-        
 
         # Theta^{n+1}_k
         rhs -= self.computer.mass_matrix_P1() @ self.computer.project_function_to_P1(self.model_data.theta( prev, self.subdomain.nodes[1, :] )) / dt

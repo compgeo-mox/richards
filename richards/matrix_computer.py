@@ -1,5 +1,5 @@
-from utilities.triangle_integration import triangle_integration
-from utilities.assembly_utilities import find_ordering
+from utilities.triangle_integration import triangle_integration, exp_triangle_integration
+from utilities.assembly_utilities import find_ordering, experimental_local_A, experimental_local_Mh
 
 import numpy as np
 import scipy.sparse as sps
@@ -149,7 +149,7 @@ class Matrix_Computer:
     # Assemble the mass matrix of P1 elements
     def mass_matrix_P1(self):
         """
-        Assemble (and store internally) the P0 mass matrix
+        Assemble (and store internally) the P1 mass matrix
         """
 
         # https://stackoverflow.com/a/610923
@@ -161,40 +161,42 @@ class Matrix_Computer:
         
     
 
-    def __integrate_local_mass_dtheta(self, model_data, coord, h, quad):
-        ordering = find_ordering(coord)
+    def __integrate_local_mass_dtheta(self, model_data, coord, in_h, quad):
+        ordering, m = find_ordering(coord)
 
         ordered_coord = coord[:, ordering]
-        ordered_h = h[ordering]
+        h = in_h[ordering]
 
         x0 = ordered_coord[:, 0]
         x1 = ordered_coord[:, 1]
         x2 = ordered_coord[:, 2]
 
-        qs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
+        qs = [(lambda x,y: 1 - (y-x0[1])/(x1[1] - x0[1]) - (x-x0[0])/(x2[0] - x0[0])), 
+              (lambda x,y: (y-x0[1])/(x1[1] - x0[1])), 
+              (lambda x,y: (x-x0[0])/(x2[0] - x0[0]))]
         
-        J = np.array([[x1[0]-x0[0], x2[0]-x0[0]],
-                    [x1[1]-x0[1], x2[1]-x0[1]]])
-        
-        jacobian = np.linalg.det(J)
         M = np.zeros(shape=(3,3))
 
-        h_fun   = lambda x,y: ordered_h[0] + (ordered_h[1] - ordered_h[0]) * x + (ordered_h[2] - ordered_h[0]) * y
-        pos_fun = lambda x,y: x0[1] + (x1[1] - x0[1]) * x + (x2[1] - x0[1]) * y
+        h_func = lambda x,y: h[0] + (h[2] - h[0]) * (x - x0[0]) / (x2[0] - x0[0]) + (h[1] - h[0]) * (y - x0[1]) / (x1[1] - x0[1])
+        func = lambda x,y: model_data.theta(np.array([h_func(x,y)]), np.array([y]), 1)[0]
 
-        func = lambda x,y: model_data.theta(np.array([h_fun(x,y)]), np.array([pos_fun(x,y)]), 1)[0]
+        sort = np.argsort(ordering)
 
         for i in range(3):
-            for j in range(3):
-                M[ ordering[i], ordering[j] ] = jacobian * triangle_integration( lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x,y), quad)
+            for j in range(i):
+                M[i, j] = M[j, i]
 
-        return M
+            for j in range(i, 3):
+                M[i, j] = exp_triangle_integration( lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x,y), quad, x0, x1, x2, m)
+
+        return M[sort, :][:, sort]
     
     def __quick_local_mass_dtheta(self, model_data, coord, h, quad):
         width  = np.max(coord[0, :]) - np.min(coord[0, :])
         height = np.max(coord[1, :]) - np.min(coord[1, :])
 
-        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.array([np.mean(h)]), np.array([np.mean(coord[1, :])]), 1)[0]
+        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.array([np.mean(h)]), 
+                                                                            np.array([np.mean(coord[1, :])]), 1)[0]
 
         
     # Assemble the mass matrix of P1 elements
@@ -231,7 +233,7 @@ class Matrix_Computer:
             A = local_mass(model_data, coord_loc, h[nodes_loc], quad_order)
 
             # Save values for stiff-H1 local matrix in the global structure
-            cols =np.tile(nodes_loc, (nodes_loc.size, 1))
+            cols = np.tile(nodes_loc, (nodes_loc.size, 1))
 
             loc_idx = slice(idx, idx + cols.size)
             rows_I[loc_idx] = cols.T.ravel()
@@ -244,42 +246,42 @@ class Matrix_Computer:
 
         
     
-    def __integrate_local_A(self, coord, h, model_data, order: int):
-        ordering = find_ordering(coord)
-
-        ordered_coord = coord[:, ordering]
-        ordered_h = h[ordering]
-
-        x0 = ordered_coord[:, 0]
-        x1 = ordered_coord[:, 1]
-        x2 = ordered_coord[:, 2]
-        
-        J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
-                            [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
-        
-
-        q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
-
+    def __integrate_local_A(self, coord, in_h, model_data, order: int):
         M = np.zeros(shape=(3,3))
 
-        h_fun   = lambda x,y: ordered_h[0] + (ordered_h[1] - ordered_h[0]) * x + (ordered_h[2] - ordered_h[0]) * y
-        pos_fun = lambda x,y: x0[1] + (x1[1] - x0[1]) * x + (x2[1] - x0[1]) * y
+        ordering, m = find_ordering(coord)
 
-        func = lambda x, y: model_data.hydraulic_conductivity_coefficient(np.array([h_fun(x,y)]), np.array([pos_fun(x,y)]))[0]
+        x0 = coord[:, ordering][:, 0]
+        x1 = coord[:, ordering][:, 1]
+        x2 = coord[:, ordering][:, 2]
 
-        jacobian = 1 / np.linalg.det( J_T_1_T.T )
+        h = in_h[ordering]
+
+        q_funcs = np.array([np.array([-1/(x2[0] - x0[0]), -1/(x1[1] - x0[1])]), 
+                np.array([0, 1/(x1[1] - x0[1])]), 
+                np.array([1/(x2[0] - x0[0]), 0])])
+        #q_funcs = q_funcs[ordering]
+
+        h_func = lambda x,y: h[0] + (h[2] - h[0]) * (x - x0[0]) / (x2[0] - x0[0]) + (h[1] - h[0]) * (y - x0[1]) / (x1[1] - x0[1])
+        func = lambda x, y: model_data.hydraulic_conductivity_coefficient(np.array([h_func(x,y)]), np.array([y]))[0]
+
+        val = exp_triangle_integration(func, order, x0, x1, x2, m)
 
         for i in range(3):
-            for j in range(3):
-                M[ ordering[i], ordering[j] ] = q_funcs[j].T @ q_funcs[i] * jacobian * triangle_integration(func, order)
+            for j in range(i):
+                M[ i, j ] = M[ j, i ]
+            for j in range(i, 3):
+                M[i, j] = q_funcs[j].T @ q_funcs[i] * val
+                
+        sort = np.argsort(ordering)
 
-        return M
+        return M[sort, :][:, sort]
     
     def __quick_local_A(self, coord, h, model_data, order: int):
         #element_height = (np.max(coord[1, :]) - np.min(coord[1, :]))
         #element_width  = (np.max(coord[0, :]) - np.min(coord[0, :]))
 
-        ordering = find_ordering(coord)
+        ordering, m = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]
@@ -464,7 +466,7 @@ class Matrix_Computer:
 
 
     def __integrate_primal_local_C(self, coord, model_data, h, order = 2):
-        ordering = find_ordering(coord)
+        ordering, m = find_ordering(coord)
 
         ordered_coord = coord[:, ordering]
         ordered_h = h[ordering]
@@ -491,13 +493,15 @@ class Matrix_Computer:
 
         for i in range(3):
             for j in range(3):
-                M[ ordering[i], ordering[j] ] = jacobian * q_funcs[i].T @ grad_h * triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order)
+                M[i, j] = jacobian * q_funcs[i].T @ grad_h * triangle_integration(lambda x, y: kappa(x,y) * m_funcs[j](x,y), order)
         
-        return M
+        sort = np.argsort(ordering)
+
+        return M[sort, :][:, sort]
     
     def __quick_primal_local_C(self, coord, model_data, h, order = 0):
 
-        ordering = find_ordering(coord)
+        ordering, m = find_ordering(coord)
 
         x0 = coord[:, ordering][:, 0]
         x1 = coord[:, ordering][:, 1]

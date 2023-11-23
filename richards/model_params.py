@@ -43,79 +43,75 @@ class Model_Data:
         """
         Prepare the theta and its derivatives up to the specified order
         """
-        fixed_len = len(self.derivative_theta)
 
-        for od in range( order - fixed_len + 1):
-            self.derivative_theta.append( sp.lambdify([self.h_var, self.z_var], sp.diff(self.theta_expression, self.h_var, fixed_len + od), 'numpy') )
+        if len(self.derivative_theta) == 0:
+            self.derivative_theta.append(
+                sp.lambdify([self.h_var, self.z_var],
+                            sp.Piecewise(
+                                (self.theta_expression, self.h_var < self.z_var),
+                                (self.theta_s, True)
+                            ), 'numpy')
+            )
+
+        fixed_len = len(self.derivative_theta)
+        
+        for od in range(order - fixed_len + 1):
+            self.derivative_theta.append( 
+                sp.lambdify([self.h_var, self.z_var], 
+                            sp.Piecewise(
+                                (sp.diff(self.theta_expression, self.h_var, fixed_len + od), self.h_var < self.z_var),
+                                (0, True)
+                            ), 'numpy') )
 
     def __hydraulic_setup(self, order):
         """
         Prepare the hydraulic conductivity coefficient and its derivatives up to the specified order
         """
+
+        if len(self.derivative_K) == 0:
+            self.derivative_K.append(
+                sp.lambdify([self.h_var, self.z_var],
+                            sp.Piecewise(
+                                (self.hydraulic_conductivity_expression, self.h_var < self.z_var),
+                                (self.K_s, True)
+                            ), 'numpy')
+            )
+
         fixed_len = len(self.derivative_K)
         
         for od in range( order - fixed_len + 1):
-            self.derivative_K.append( sp.lambdify([self.h_var, self.z_var], sp.diff(self.hydraulic_conductivity_expression, self.h_var, fixed_len + od), 'numpy') )
+            self.derivative_K.append(
+                sp.lambdify([self.h_var, self.z_var],
+                            sp.Piecewise(
+                                (sp.diff(self.hydraulic_conductivity_expression, self.h_var, fixed_len + od), self.h_var < self.z_var),
+                                (0, True)
+                            ), 'numpy')
+            )
 
     def __inv_hydraulic_setup(self, order):
         """
         Prepare the inverse hydraulic conductivity coefficient and its derivatives up to the specified order
         """
+
+        if len(self.derivative_K_inv) == 0:
+            self.derivative_K_inv.append(
+                sp.lambdify([self.h_var, self.z_var],
+                            sp.Piecewise(
+                                (1 / self.hydraulic_conductivity_expression, self.h_var < self.z_var),
+                                (1 / self.K_s, True)
+                            ), 'numpy')
+            )
+
         fixed_len = len(self.derivative_K_inv)
         
         for od in range( order - fixed_len + 1):
-            self.derivative_K_inv.append( sp.lambdify([self.h_var, self.z_var], sp.diff(1 / self.hydraulic_conductivity_expression, self.h_var, fixed_len + od), 'numpy') )
-
-    
-    def __internal_theta(self, h, z, order):
-        """
-        It will return the derivative of theta of the specified order evaluated in the center of each elemet
-        """
-        mask = np.zeros_like(h, dtype=bool)
-        mask = h < z
-
-        if order == 0:
-            res = np.ones_like(h) * self.theta_s
-        else:
-            res = np.zeros_like(h)
-
-        res[mask] = self.derivative_theta[order](h[mask], z[mask])
-
-        return res
-    
-    
-    def __internal_hydraulic(self, h, z, order):
-        """
-        It will return the derivative of hydraulic conductivity of the specified order evaluated in the center of each elemet
-        """
-        mask = np.zeros_like(h, dtype=bool)
-        mask = h < z
-
-        if order == 0:
-            res = np.ones_like(h) * self.K_s
-        else:
-            res = np.zeros_like(h)
-
-        res[mask] = self.derivative_K[order](h[mask], z[mask])
-
-        return res
-    
-    
-    def __internal_inv_hydraulic(self, h, z, order):
-        """
-        It will return the derivative of inverse hydraulic conductivity of the specified order evaluated in the center of each elemet
-        """
-        mask = np.zeros_like(h, dtype=bool)
-        mask = h < z
-
-        if order == 0:
-            res = np.ones_like(h) / self.K_s
-        else:
-            res = np.zeros_like(h)
-
-        res[mask] = self.derivative_K_inv[order](h[mask], z[mask])
-
-        return res
+            self.derivative_K_inv.append(
+                sp.lambdify([self.h_var, self.z_var],
+                            sp.Piecewise(
+                                (sp.diff(1 / self.hydraulic_conductivity_expression, self.h_var, fixed_len + od), self.h_var < self.z_var),
+                                (0, True)
+                            ), 'numpy')
+            )
 
 
     def theta(self, h, z, order = 0):
@@ -125,7 +121,7 @@ class Model_Data:
         if len(self.derivative_theta) <= order:
             self.__theta_setup(order)
 
-        return self.__internal_theta(h, z, order)
+        return self.derivative_theta[order](h, z)
 
 
     def hydraulic_conductivity_coefficient(self, h, z, order = 0):
@@ -135,7 +131,7 @@ class Model_Data:
         if len(self.derivative_K) <= order:
             self.__hydraulic_setup(order)
 
-        return self.__internal_hydraulic(h, z, order)
+        return self.derivative_K[order](h, z)
 
 
     def inverse_hydraulic_conductivity_coefficient(self, h, z, order = 0):
@@ -145,4 +141,4 @@ class Model_Data:
         if len(self.derivative_K_inv) <= order:
             self.__inv_hydraulic_setup(order)
 
-        return self.__internal_inv_hydraulic(h, z, order)
+        return self.derivative_K_inv[order](h, z)

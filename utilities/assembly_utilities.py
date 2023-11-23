@@ -2,62 +2,37 @@ import numpy as np
 from utilities.triangle_integration import triangle_integration, exp_triangle_integration
 
 # Helper function used obtain the ordering of the points of a right triangle from the node opposite to the hypotenuse in a clockwise manner.
-def find_ordering(coord: np.array):
+def find_ordering(coord: np.array, tolerance=1e-7):
     lx = np.argmin(coord[0, :])
     rx = np.argmax(coord[0, :])
     mx = np.setdiff1d(np.array([0,1,2]), np.array([lx, rx]))[0]
 
     # Vertical Alignment
-    if np.abs( coord[0, lx] - coord[0, mx] ) < 1e-7:
+    if np.abs( coord[0, lx] - coord[0, mx] ) < tolerance:
         # lx and mx vertical aligned, rx no
         up =   lx if np.argmax(coord[1, np.array([lx, mx])]) == 0 else mx
         down = lx if np.argmin(coord[1, np.array([lx, mx])]) == 0 else mx
 
-        if np.abs( coord[1, up] - coord[1, rx] ) < 1e-7:
-            return [up, down, rx]
+        if np.abs( coord[1, up] - coord[1, rx] ) < tolerance:
+            return [up, down, rx], -1
         else:
-            return [down, rx, up]
+            return [down, rx, up], -1
     else:
         # rx and mx vertical aligned, lx no
         up =   rx if np.argmax(coord[1, np.array([rx, mx])]) == 0 else mx
         down = rx if np.argmin(coord[1, np.array([rx, mx])]) == 0 else mx
 
-        if np.abs( coord[1, up] - coord[1, lx] ) < 1e-7:
-            return [up, lx, down]
+        if np.abs( coord[1, up] - coord[1, lx] ) < tolerance:
+            return [up, lx, down], 1
         else:
-            return [down, up, lx]
-        
-# Simple matrix used to compute the local contribution to the h-stifness matrix.
-# We assume that the element is triangular
-def local_A(coord, K_local, quad_order):
-    M = np.zeros(shape=(3,3))
-
-    ordering = find_ordering(coord)
-
-    x0 = coord[:, ordering][:, 0]
-    x1 = coord[:, ordering][:, 1]
-    x2 = coord[:, ordering][:, 2]
-    
-    J_T_1_T = np.array([[x2[1]-x0[1], x0[1]-x1[1]],
-                        [x0[0]-x2[0], x1[0]-x0[0]]]) / ((x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1]))
-    
-
-    q_funcs = [J_T_1_T @ np.array([-1, -1]), J_T_1_T @ np.array([ 1, 0]), J_T_1_T @ np.array([0,  1])]
-
-    area = (np.max(coord[1, :]) - np.min(coord[1, :])) * (np.max(coord[0, :]) - np.min(coord[0, :]))
-
-    for i in range(3):
-            for j in range(3):
-                M[ordering[i], ordering[j]] = area * triangle_integration(lambda x,y: q_funcs[i].T @ K_local(x, y) @ q_funcs[j], quad_order)
-
-    return M
+            return [down, up, lx], 1
 
 # Simple matrix used to compute the local contribution to the h-stifness matrix.
 # We assume that the element is triangular
-def experimental_local_A(coord, K_local, quad_order, m):
+def experimental_local_A(coord, K_local, quad_order):
     M = np.zeros(shape=(3,3))
 
-    ordering = find_ordering(coord)
+    ordering, m = find_ordering(coord)
 
     x0 = coord[:, ordering][:, 0]
     x1 = coord[:, ordering][:, 1]
@@ -70,6 +45,7 @@ def experimental_local_A(coord, K_local, quad_order, m):
     for i in range(3):
             for j in range(3):
                 M[ordering[i], ordering[j]] = exp_triangle_integration(lambda x,y: q_funcs[i].T @ K_local(x,y) @ q_funcs[j], quad_order, x0, x1, x2, m)
+
 
     return M
 
@@ -97,8 +73,8 @@ def local_Mh(coord, func, quad_order):
 
 # Simple matrix used to compute the local contribution to the h-mass matrix.
 # We assume that the element is triangular
-def experimental_local_Mh(coord, func, quad_order, m):
-    ordering = find_ordering(coord)
+def experimental_local_Mh(coord, func, quad_order):
+    ordering, m = find_ordering(coord)
 
     x0 = coord[:, ordering][:, 0]
     x1 = coord[:, ordering][:, 1]
@@ -113,7 +89,7 @@ def experimental_local_Mh(coord, func, quad_order, m):
     for i in range(3):
         for j in range(3):
             M[ ordering[i], ordering[j] ] = exp_triangle_integration(lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x, y), quad_order, x0, x1, x2, m)
-
+        
     return M
 
 
