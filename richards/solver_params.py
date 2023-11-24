@@ -6,17 +6,23 @@ class Solver_Enum(Enum):
     PICARD  = 2,
     LSCHEME = 3
 
+class Norm_Error(Enum):
+    EUCLIDIAN = 1,
+    L2 = 1
 
 # Simple class used to store the solver related parameters and to generate the rhs of the problem
 class Solver_Data:
     def __init__(self, mdg, initial_solution, scheme: Solver_Enum, bc_essential, eps_psi_abs, eps_psi_rel, max_iterations_per_step, 
                  L_Scheme_value=None, output_directory='output', report_directory='report', report_name=None, step_output_allowed=True, primal=False, 
-                 bc_essential_value = None, integration_order = 0, prepare_plots = False, shape_x=None, shape_y=None):
+                 bc_essential_value = None, integration_order = 0, prepare_plots = False, shape_x=None, shape_y=None,
+                 norm_error=Norm_Error.L2):
         self.mdg = mdg
         self.initial_solution = initial_solution
         self.output_directory = output_directory
         self.scheme = scheme
         self.bc_essential = bc_essential
+
+        self.norm_error = norm_error
 
         if bc_essential_value == None:
             self.bc_essential_value = lambda t: np.zeros_like(bc_essential(t))

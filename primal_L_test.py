@@ -4,7 +4,7 @@ from richards.model_params import Model_Data
 from richards.solver import Solver
 from richards.csv_exporter import Csv_Exporter
 from richards.matrix_computer import Matrix_Computer
-from richards.solver_params import Solver_Data, Solver_Enum
+from richards.solver_params import Solver_Data, Solver_Enum, Norm_Error
 
 
 import sys, time, os, shutil
@@ -19,7 +19,7 @@ import numpy as np
 
 ### PARAMETERS
 
-K = 500
+K = 50
 
 eps_psi_abs = 1e-5
 eps_psi_rel = 1e-5
@@ -63,7 +63,7 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
                               output_directory=output_directory, L_Scheme_value=L_Value,
                               report_name=prefix_file_name, report_directory=report_output_directory,
                               step_output_allowed=False,
-                              primal=True, integration_order=1)
+                              primal=True, integration_order=3, norm_error=Norm_Error.EUCLIDIAN)
 
     ### PREPARE SOLVER
     start = time.time()
@@ -96,14 +96,14 @@ def run_experiments(L_values, directory_prefixes, Ns, int_model_data):
 def variable_L():
     steps = 9
     print('Problem name: ' + problem_name + ', Variable_L, num_steps=' + str(steps))
-    L_values = [i for i in range(22, 60)]
+    L_values = [i for i in range(23, 60)]
     prefixes = []
 
     for L_value in L_values:
         prefixes.append('VARL_' + str(L_value) + '_steps_' + str(steps))
 
     model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=steps)
-    run_experiments(L_values, prefixes, [20], model_data)
+    run_experiments(L_values, prefixes, [40], model_data)
 
 def variable_N():
     steps = 9
@@ -133,5 +133,5 @@ def variable_dt():
 
 
 variable_L()
-variable_N()
-variable_dt()
+#variable_N()
+#variable_dt()
