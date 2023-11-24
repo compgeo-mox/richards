@@ -1,5 +1,5 @@
-from utilities.triangle_integration import triangle_integration, exp_triangle_integration
-from utilities.assembly_utilities import find_ordering, experimental_local_A, experimental_local_Mh
+from utilities.triangle_integration import exp_triangle_integration
+from utilities.assembly_utilities import find_ordering, experimental_local_A, experimental_local_Mh, transoform_nodal_func_to_physical_element
 
 import numpy as np
 import scipy.sparse as sps
@@ -162,34 +162,15 @@ class Matrix_Computer:
     
 
     def __integrate_local_mass_dtheta(self, model_data, coord, in_h, quad):
-        ordering, m = find_ordering(coord)
 
-        ordered_coord = coord[:, ordering]
-        h = in_h[ordering]
+        h_func = transoform_nodal_func_to_physical_element(in_h, coord)
+        func = lambda x,y: model_data.theta( h_func(x,y), y, 1)
 
-        x0 = ordered_coord[:, 0]
-        x1 = ordered_coord[:, 1]
-        x2 = ordered_coord[:, 2]
-
-        qs = [(lambda x,y: 1 - (y-x0[1])/(x1[1] - x0[1]) - (x-x0[0])/(x2[0] - x0[0])), 
-              (lambda x,y: (y-x0[1])/(x1[1] - x0[1])), 
-              (lambda x,y: (x-x0[0])/(x2[0] - x0[0]))]
-        
-        M = np.zeros(shape=(3,3))
-
-        h_func = lambda x,y: h[0] + (h[2] - h[0]) * (x - x0[0]) / (x2[0] - x0[0]) + (h[1] - h[0]) * (y - x0[1]) / (x1[1] - x0[1])
-        func = lambda x,y: model_data.theta(np.array([h_func(x,y)]), np.array([y]), 1)[0]
-
-        sort = np.argsort(ordering)
-
-        for i in range(3):
-            for j in range(i):
-                M[i, j] = M[j, i]
-
-            for j in range(i, 3):
-                M[i, j] = exp_triangle_integration( lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x,y), quad, x0, x1, x2, m)
-
-        return M[sort, :][:, sort]
+        return experimental_local_Mh(
+            coord,
+            func,
+            quad
+        )
     
     def __quick_local_mass_dtheta(self, model_data, coord, h, quad):
         width  = np.max(coord[0, :]) - np.min(coord[0, :])
@@ -262,8 +243,8 @@ class Matrix_Computer:
                 np.array([1/(x2[0] - x0[0]), 0])])
         #q_funcs = q_funcs[ordering]
 
-        h_func = lambda x,y: h[0] + (h[2] - h[0]) * (x - x0[0]) / (x2[0] - x0[0]) + (h[1] - h[0]) * (y - x0[1]) / (x1[1] - x0[1])
-        func = lambda x, y: model_data.hydraulic_conductivity_coefficient(np.array([h_func(x,y)]), np.array([y]))[0]
+        h_func = transoform_nodal_func_to_physical_element(in_h, coord)
+        func = lambda x, y: model_data.hydraulic_conductivity_coefficient(h_func(x,y), y)
 
         val = exp_triangle_integration(func, order, x0, x1, x2, m)
 
@@ -486,8 +467,8 @@ class Matrix_Computer:
 
         M = np.zeros(shape=(3,3))
 
-        h_func = lambda x,y: h[0] + (h[2] - h[0]) * (x - x0[0]) / (x2[0] - x0[0]) + (h[1] - h[0]) * (y - x0[1]) / (x1[1] - x0[1])
-        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(np.array([h_func(x,y)]), np.array([y]), 1)[0]
+        h_func = transoform_nodal_func_to_physical_element(h, coord)
+        kappa = lambda x,y: model_data.hydraulic_conductivity_coefficient(h_func(x,y), y, 1)
 
         for i in range(3):
             for j in range(3):

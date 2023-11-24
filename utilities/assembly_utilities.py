@@ -1,5 +1,5 @@
 import numpy as np
-from utilities.triangle_integration import triangle_integration, exp_triangle_integration
+from utilities.triangle_integration import exp_triangle_integration
 
 # Helper function used obtain the ordering of the points of a right triangle from the node opposite to the hypotenuse in a clockwise manner.
 def find_ordering(coord: np.array, tolerance=1e-7):
@@ -26,6 +26,16 @@ def find_ordering(coord: np.array, tolerance=1e-7):
             return [up, lx, down], 1
         else:
             return [down, up, lx], 1
+        
+def transoform_nodal_func_to_physical_element(nodal_values, coord):
+    ordering, _ = find_ordering(coord)
+    
+    ordered_values = nodal_values[ordering]
+    ordered_coords = coord[:, ordering]
+
+    return lambda x,y: (ordered_values[0] + 
+                       (ordered_values[2] - ordered_values[0]) * (x - ordered_coords[0,0]) / (ordered_coords[0,2] - ordered_coords[0,0]) + 
+                       (ordered_values[1] - ordered_values[0]) * (y - ordered_coords[1,0]) / (ordered_coords[1,1] - ordered_coords[1,0]))
 
 # Simple matrix used to compute the local contribution to the h-stifness matrix.
 # We assume that the element is triangular
@@ -52,27 +62,6 @@ def experimental_local_A(coord, K_local, quad_order):
 
 # Simple matrix used to compute the local contribution to the h-mass matrix.
 # We assume that the element is triangular
-def local_Mh(coord, func, quad_order):
-    ordering = find_ordering(coord)
-
-    x0 = coord[:, ordering][:, 0]
-    x1 = coord[:, ordering][:, 1]
-    x2 = coord[:, ordering][:, 2]
-
-    qs = [(lambda x,y: 1-x-y), (lambda x,y: x), (lambda x,y: y)]
-    
-    jacobian = (x1[0]-x0[0]) * (x2[1]-x0[1]) - (x2[0]-x0[0]) * (x1[1]-x0[1])
-    M = np.zeros(shape=(3,3))
-
-    for i in range(3):
-        for j in range(3):
-            M[ ordering[i], ordering[j] ] = jacobian * triangle_integration(lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x, y), quad_order)
-
-    return M
-
-
-# Simple matrix used to compute the local contribution to the h-mass matrix.
-# We assume that the element is triangular
 def experimental_local_Mh(coord, func, quad_order):
     ordering, m = find_ordering(coord)
 
@@ -85,12 +74,16 @@ def experimental_local_Mh(coord, func, quad_order):
           (lambda x,y: (x-x0[0])/(x2[0] - x0[0]))]
     
     M = np.zeros(shape=(3,3))
+    sort = np.argsort(ordering)
 
     for i in range(3):
-        for j in range(3):
-            M[ ordering[i], ordering[j] ] = exp_triangle_integration(lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x, y), quad_order, x0, x1, x2, m)
+        for j in range(i):
+            M[i, j] = M[j, i]
+
+        for j in range(i, 3):
+            M[i, j] = exp_triangle_integration(lambda x,y: qs[j](x,y) * qs[i](x,y) * func(x, y), quad_order, x0, x1, x2, m)
         
-    return M
+    return M[sort, :][:, sort]
 
 
 # Simple helper function used to compute the value of eta and the actual height at (x,y) of the given reference element (whose vertices are (0,0), (1,0) and (0,1)).

@@ -1,5 +1,4 @@
-from utilities.assembly_utilities import experimental_local_Mh, find_ordering
-import utilities.chi_func as helper_chi_func
+from utilities.assembly_utilities import experimental_local_Mh
 
 import numpy as np
 import scipy.sparse as sps
@@ -9,7 +8,7 @@ import pygeon as pg
 
 
 # Assemble the h-stifness matrix for the moving domain Darcy problem
-def exp_global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_x3):
+def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_x3):
     size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
     rows_I = np.empty(size, dtype=int)
     cols_J = np.empty(size, dtype=int)

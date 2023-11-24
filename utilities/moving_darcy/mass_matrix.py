@@ -8,7 +8,7 @@ import porepy as pp
 import pygeon as pg
 
 # Assemble the h-stifness matrix for the moving domain Darcy problem
-def exp_global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func):
+def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func):
     size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
     rows_I = np.empty(size, dtype=int)
     cols_J = np.empty(size, dtype=int)
@@ -30,9 +30,7 @@ def exp_global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: he
         coord_loc = node_coords[:, nodes_loc]
 
         eta_cell = np.max(np.where( boundary_grid.nodes[0, :] < subdomain.cell_centers[0, c] ))
-        base_height    = np.min(coord_loc[1, :])
-        element_height = np.max(coord_loc[1, :]) - base_height
-
+        
         ls_node = np.min(coord_loc[0, :])
         cell_width = np.max(coord_loc[0, :]) - ls_node
 

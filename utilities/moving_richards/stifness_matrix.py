@@ -1,4 +1,4 @@
-from utilities.assembly_utilities import experimental_local_A, find_ordering
+from utilities.assembly_utilities import experimental_local_A, find_ordering, transoform_nodal_func_to_physical_element
 import utilities.chi_func as helper_chi_func
 
 from utilities.K_func_generator import quick_K_func_eval
@@ -11,7 +11,7 @@ import pygeon as pg
 
 
 # Assemble the h-stifness matrix for the moving domain Darcy problem
-def exp_stifness(eta_diff, sd, boundary_grid, 
+def stifness(eta_diff, sd, boundary_grid, 
                  eta_dofs, quad_order, 
                  chi_x3, chi_eta,
                  h_dofs, conductivity_func, verbose=False):
@@ -48,16 +48,9 @@ def exp_stifness(eta_diff, sd, boundary_grid,
         ls_eta = eta_dofs[eta_cell]
         rs_eta = eta_dofs[eta_cell+1]
         eta = lambda x: ls_eta + (x - ls_node) / cell_width * (rs_eta - ls_eta)
-        
-        ordering, m = find_ordering(coord_loc)
 
-        h_local = h_dofs[nodes_loc][ordering]
-        ordered_coord = coord_loc[:, ordering]
+        h_func = transoform_nodal_func_to_physical_element(h_dofs[nodes_loc], coord_loc)
 
-        h_func = lambda x,y: (h_local[0] + 
-                             (h_local[2] - h_local[0]) * (x - ordered_coord[0,0]) / (ordered_coord[0,2] - ordered_coord[0,0]) + 
-                             (h_local[1] - h_local[0]) * (y - ordered_coord[1,0]) / (ordered_coord[1,1] - ordered_coord[1,0]))
-        
         K_loc = lambda x,y: quick_K_func_eval( chi_x3(eta(x), y), 
                                                chi_eta(eta(x), y), 
                                                grad_eta[eta_cell], 

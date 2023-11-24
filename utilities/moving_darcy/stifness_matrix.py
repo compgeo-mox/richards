@@ -1,4 +1,4 @@
-from utilities.assembly_utilities import experimental_local_A, find_ordering
+from utilities.assembly_utilities import experimental_local_A
 import utilities.chi_func as helper_chi_func
 
 from utilities.K_func_generator import quick_K_func_eval
@@ -11,13 +11,13 @@ import pygeon as pg
 
 
 # Assemble the h-stifness matrix for the moving domain Darcy problem
-def exp_stifness(eta_diff, sd, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func):
+def stifness(eta_diff, sd, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func):
     grad_eta   = eta_diff @ eta_dofs
 
     # Map the domain to a reference geometry (i.e. equivalent to compute
     # surface coordinates in 1d and 2d)
 
-    _, _, _, _, dim, node_coords = pp.map_geometry.map_grid(sd)
+    _, _, _, _, _, node_coords = pp.map_geometry.map_grid(sd)
 
     # Allocate the data to store matrix entries, that's the most efficient
     # way to create a sparse matrix.
@@ -46,8 +46,8 @@ def exp_stifness(eta_diff, sd, boundary_grid, eta_dofs, quad_order, chi_func: he
         eta = lambda x: ls_eta + (x - ls_node) / cell_width * (rs_eta - ls_eta)
 
         K_loc = lambda x,y: quick_K_func_eval( chi_func.x3_derivative(eta(x), y), 
-                                               chi_func.eta_derivative(eta(x), y), 
-                                               grad_eta[eta_cell], 1)
+                                              chi_func.eta_derivative(eta(x), y), 
+                                              grad_eta[eta_cell], 1)
 
         A = experimental_local_A(coord_loc, K_loc, quad_order)
 
