@@ -271,7 +271,7 @@ class Solver:
 
             if self.verbose:
                 print('Iteration #' + format(k+1, '0' + str(ceil(log10(self.solver_data.max_iterations_per_step)) + 1) + 'd') 
-                    + ', error L2 relative psi: ' + format(abs_err, str(5 + ceil(log10(1 / abs_tol)) + 4) + '.' + str(ceil(log10(1 / abs_tol)) + 4) + 'f'))
+                    + ', norm of the error: ' + format(abs_err, str(5 + ceil(log10(1 / abs_tol)) + 4) + '.' + str(ceil(log10(1 / abs_tol)) + 4) + 'f'))
 
 
             if isnan(abs_err) or isnan(abs_prev):
