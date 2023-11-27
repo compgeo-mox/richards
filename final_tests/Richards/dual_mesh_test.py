@@ -1,7 +1,6 @@
 ### IMPORTS
 
-import sys, time, os, shutil
-sys.path.insert(0, "/workspaces/richards/")
+import time, os, shutil
 
 from richards.model_params import Model_Data
 from richards.matrix_computer import Matrix_Computer
@@ -26,7 +25,7 @@ eps_psi_abs = 1e-5
 eps_psi_rel = 1e-5
 
 dt_D = 1/16
-problem_name = 'primal_benchmark'
+problem_name = 'dual_benchmark'
 
 output_directory = 'output_evolutionary'
 
@@ -36,6 +35,17 @@ model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4
 def initial_h_func(x):
     return 1
 
+    
+def bc_gamma_d(x, t, tolerance):
+    if   x[0] > 2-tolerance and x[1] > 0-tolerance and x[1] < 1+tolerance:
+        res =  1
+    elif x[1] > 3-tolerance and x[0] > 0-tolerance and x[0] < 1+tolerance:
+        res = min( 3.2, 1 + 2.2 * t / dt_D )
+    else:
+        res = 0
+
+    return res
+
 
 def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme_info):
     ### DOMAIN CONSTRUCTION
@@ -43,30 +53,51 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
     mdg = pp.meshing.subdomains_to_mdg([domain])
     domain_tolerance = 1 / (100 * N)
 
+    key = "flow"
+
+    RT0 = pg.RT0(key)
+    P0  = pg.PwConstants(key)
+
     subdomain, data = mdg.subdomains(return_data=True)[0]
+    initial_pressure = P0.interpolate(subdomain, initial_h_func)
             
-    gamma_d1 = np.logical_and(subdomain.nodes[0, :] > 0-domain_tolerance, np.logical_and(subdomain.nodes[0, :] < 1+domain_tolerance, subdomain.nodes[1, :] > 3-domain_tolerance))
-    gamma_d2 = np.logical_and(subdomain.nodes[0, :] > 2-domain_tolerance, np.logical_and(subdomain.nodes[1, :] > 0-domain_tolerance, subdomain.nodes[1, :] < 1+domain_tolerance))
+    # with the following steps we identify the portions of the boundary to impose the boundary conditions
+    boundary_faces_indexes = subdomain.get_boundary_faces()
+
+    gamma_d1 = np.logical_and(subdomain.face_centers[0, :] > 0-domain_tolerance, np.logical_and(subdomain.face_centers[0, :] < 1+domain_tolerance, subdomain.face_centers[1, :] > 3-domain_tolerance))
+    gamma_d2 = np.logical_and(subdomain.face_centers[0, :] > 2-domain_tolerance, np.logical_and(subdomain.face_centers[1, :] > 0-domain_tolerance, subdomain.face_centers[1, :] < 1+domain_tolerance))
 
     gamma_d  = np.logical_or(gamma_d1, gamma_d2)
+        
+    gamma_n  = gamma_d.copy()
+    gamma_n[boundary_faces_indexes] = np.logical_not(gamma_n[boundary_faces_indexes])
+        
 
-    bc_value = lambda t: np.array(gamma_d2, dtype=float) + np.array(gamma_d1, dtype=float) * min(3.2, 1 + 2.2 * t / dt_D)
+    pp.initialize_data(subdomain, data, key, {
+        "second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_cells)),
+    })
+
+    bc_value = lambda t: - RT0.assemble_nat_bc(subdomain, lambda x: bc_gamma_d(x,t, domain_tolerance), gamma_d)
+
+    essential_pressure_dofs = np.zeros(P0.ndof(subdomain), dtype=bool)
+    bc_essential = np.hstack((gamma_n, essential_pressure_dofs))
 
     if os.path.exists(output_directory):
         shutil.rmtree(output_directory)
 
     ### PREPARE SOLVER DATA
     cp = Matrix_Computer(mdg)
+    initial_solution = np.zeros(cp.dof_RT0 + cp.dof_P0)
+    initial_solution[-cp.dof_P0:] += np.hstack(initial_pressure)
 
-    solver_data = Solver_Data(mdg=mdg, initial_solution=cp.P1.interpolate(subdomain, initial_h_func), 
-                              scheme=scheme_info, 
-                              bc_essential=lambda t: gamma_d, bc_essential_value=bc_value,
-                              eps_psi_abs=eps_psi_abs, eps_psi_rel=eps_psi_rel, 
-                              max_iterations_per_step=K,
-                              output_directory=output_directory, L_Scheme_value=L_Value,
-                              report_name=prefix_file_name, report_directory=report_output_directory,
-                              step_output_allowed=False, norm_error=Norm_Error.EUCLIDIAN,
-                              primal=True, integration_order=3)
+    solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
+                            bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
+                            eps_psi_rel=eps_psi_rel, max_iterations_per_step=K,
+                            output_directory=output_directory, L_Scheme_value=L_Value, norm_error=Norm_Error.EUCLIDIAN,
+                            report_name=prefix_file_name, report_directory=report_output_directory,
+                            step_output_allowed=False)
+
+    solver_data.set_rhs_vector_q(lambda t: bc_value(t))
 
     ### PREPARE SOLVER
     start = time.time()

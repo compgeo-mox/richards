@@ -37,16 +37,20 @@ def transoform_nodal_func_to_physical_element(nodal_values, coord):
                        (ordered_values[2] - ordered_values[0]) * (x - ordered_coords[0,0]) / (ordered_coords[0,2] - ordered_coords[0,0]) + 
                        (ordered_values[1] - ordered_values[0]) * (y - ordered_coords[1,0]) / (ordered_coords[1,1] - ordered_coords[1,0]))
 
+
+
 # Simple matrix used to compute the local contribution to the h-stifness matrix.
 # We assume that the element is triangular
-def experimental_local_A(coord, K_local, quad_order):
+def local_A(coord, K_local, quad_order):
     M = np.zeros(shape=(3,3))
 
     ordering, m = find_ordering(coord)
 
-    x0 = coord[:, ordering][:, 0]
-    x1 = coord[:, ordering][:, 1]
-    x2 = coord[:, ordering][:, 2]
+    ordered_coords = coord[:, ordering]
+
+    x0 = ordered_coords[:, 0]
+    x1 = ordered_coords[:, 1]
+    x2 = ordered_coords[:, 2]
 
     q_funcs = [np.array([-1/(x2[0] - x0[0]), -1/(x1[1] - x0[1])]), 
                np.array([0, 1/(x1[1] - x0[1])]), 
@@ -54,15 +58,17 @@ def experimental_local_A(coord, K_local, quad_order):
 
     for i in range(3):
             for j in range(3):
-                M[ordering[i], ordering[j]] = exp_triangle_integration(lambda x,y: q_funcs[i].T @ K_local(x,y) @ q_funcs[j], quad_order, x0, x1, x2, m)
+                M[i, j] = exp_triangle_integration(lambda x,y: q_funcs[i].T @ K_local(x,y) @ q_funcs[j], quad_order, x0, x1, x2, m)
 
 
-    return M
+    sort = np.argsort(ordering)
+    return M[sort, :][:, sort]
+
 
 
 # Simple matrix used to compute the local contribution to the h-mass matrix.
 # We assume that the element is triangular
-def experimental_local_Mh(coord, func, quad_order):
+def local_Mh(coord, func, quad_order):
     ordering, m = find_ordering(coord)
 
     x0 = coord[:, ordering][:, 0]

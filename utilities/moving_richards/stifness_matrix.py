@@ -1,4 +1,4 @@
-from utilities.assembly_utilities import experimental_local_A, find_ordering, transoform_nodal_func_to_physical_element
+from utilities.assembly_utilities import local_A, find_ordering, transoform_nodal_func_to_physical_element
 import utilities.chi_func as helper_chi_func
 
 from utilities.K_func_generator import quick_K_func_eval
@@ -59,7 +59,7 @@ def stifness(eta_diff, sd, boundary_grid,
         #print(K_loc(np.mean(coord_loc[0, :]), np.mean(coord_loc[1, :])), h_func(coord_loc[0, :], coord_loc[1, :]))
         #K_loc = lambda x,y: conductivity_func(h_func(x,y), eta(x), y) * np.array([[3, 2], [2, 3]])
 
-        A = experimental_local_A(coord_loc, K_loc, quad_order)
+        A = local_A(coord_loc, K_loc, quad_order)
 
         # Save values for stiff-H1 local matrix in the global structure
         cols = np.tile(nodes_loc, (nodes_loc.size, 1))

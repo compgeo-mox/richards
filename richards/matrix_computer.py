@@ -1,5 +1,5 @@
 from utilities.triangle_integration import exp_triangle_integration
-from utilities.assembly_utilities import find_ordering, experimental_local_A, experimental_local_Mh, transoform_nodal_func_to_physical_element
+from utilities.assembly_utilities import find_ordering, local_A, local_Mh, transoform_nodal_func_to_physical_element
 
 import numpy as np
 import scipy.sparse as sps
@@ -23,7 +23,6 @@ class Matrix_Computer:
         self.key = key
 
         self.prepared_dual_C = False
-        self.prepared_primal_C = True
 
         self.mdg = pg.as_mdg(mdg)        
 
@@ -166,7 +165,7 @@ class Matrix_Computer:
         h_func = transoform_nodal_func_to_physical_element(in_h, coord)
         func = lambda x,y: model_data.theta( h_func(x,y), y, 1)
 
-        return experimental_local_Mh(
+        return local_Mh(
             coord,
             func,
             quad
@@ -176,8 +175,7 @@ class Matrix_Computer:
         width  = np.max(coord[0, :]) - np.min(coord[0, :])
         height = np.max(coord[1, :]) - np.min(coord[1, :])
 
-        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.array([np.mean(h)]), 
-                                                                            np.array([np.mean(coord[1, :])]), 1)[0]
+        return self.P1.local_mass(width * height / 2, 2) * model_data.theta(np.mean(h), np.mean(coord[1, :]), 1)
 
         
     # Assemble the mass matrix of P1 elements
@@ -236,15 +234,13 @@ class Matrix_Computer:
         x1 = coord[:, ordering][:, 1]
         x2 = coord[:, ordering][:, 2]
 
-        h = in_h[ordering]
-
         q_funcs = np.array([np.array([-1/(x2[0] - x0[0]), -1/(x1[1] - x0[1])]), 
                 np.array([0, 1/(x1[1] - x0[1])]), 
                 np.array([1/(x2[0] - x0[0]), 0])])
-        #q_funcs = q_funcs[ordering]
 
         h_func = transoform_nodal_func_to_physical_element(in_h, coord)
         func = lambda x, y: model_data.hydraulic_conductivity_coefficient(h_func(x,y), y)
+
 
         val = exp_triangle_integration(func, order, x0, x1, x2, m)
 
@@ -278,7 +274,7 @@ class Matrix_Computer:
 
         jacobian = 1 / np.linalg.det( J_T_1_T.T )
 
-        tmp = model_data.hydraulic_conductivity_coefficient( np.array([np.mean(h)]), np.array([np.mean(coord[1, :])]) )[0]
+        tmp = model_data.hydraulic_conductivity_coefficient( np.mean(h), np.mean(coord[1, :]) )
 
         for i in range(3):
             for j in range(3):
@@ -415,7 +411,7 @@ class Matrix_Computer:
         data_A = np.empty(self.size_A)
         idx_A = 0
 
-        data[pp.PARAMETERS].update({"second_order_tensor": np.ones(subdomain.num_cells)})
+        data[pp.PARAMETERS][self.key].update({"second_order_tensor": pp.SecondOrderTensor(np.ones(subdomain.num_faces))})
 
         for c in np.arange(subdomain.num_cells):
             loc = slice(subdomain.cell_faces.indptr[c], subdomain.cell_faces.indptr[c + 1])

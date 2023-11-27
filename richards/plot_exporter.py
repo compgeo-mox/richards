@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
+import shutil
 
 import os
 
@@ -8,9 +9,9 @@ class Plot_Exporter:
     def __init__(self, base_directory):
         self.base_directory = base_directory
         self.path = os.path.join(base_directory, 'plots')
-
+    
         if os.path.exists(self.path):
-            os.remove(self.path)
+            shutil.rmtree(self.path)
         os.makedirs(self.path)
 
         cm_data = [

@@ -1,4 +1,4 @@
-from utilities.assembly_utilities import experimental_local_A
+from utilities.assembly_utilities import local_A
 import utilities.chi_func as helper_chi_func
 
 from utilities.K_func_generator import quick_K_func_eval
@@ -49,7 +49,7 @@ def stifness(eta_diff, sd, boundary_grid, eta_dofs, quad_order, chi_func: helper
                                               chi_func.eta_derivative(eta(x), y), 
                                               grad_eta[eta_cell], 1)
 
-        A = experimental_local_A(coord_loc, K_loc, quad_order)
+        A = local_A(coord_loc, K_loc, quad_order)
 
         # Save values for stiff-H1 local matrix in the global structure
         cols = np.tile(nodes_loc, (nodes_loc.size, 1))

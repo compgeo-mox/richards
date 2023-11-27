@@ -108,7 +108,7 @@ def variable_L():
 def variable_N():
     steps = 9
     print('Problem name: ' + problem_name + ', Variable_N, num_steps=' + str(steps))
-    L_values = [35]
+    L_values = [34]
     prefixes = []
 
     for L_value in L_values:
@@ -120,7 +120,7 @@ def variable_N():
 
 def variable_dt():
     steps = [i for i in range(9, 100, 10)]
-    L_values = [35]
+    L_values = [34]
 
     for step in steps:
         prefixes = []
@@ -128,10 +128,10 @@ def variable_dt():
             prefixes.append('VART_' + str(pref) + '_steps_' + str(step))
         
         model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=step)
-        run_experiments(L_values, prefixes, [20], model_data)
+        run_experiments(L_values, prefixes, [40], model_data)
 
 
 
-variable_L()
-#variable_N()
-#variable_dt()
+#variable_L()
+variable_N()
+variable_dt()

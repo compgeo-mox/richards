@@ -1,4 +1,4 @@
-from utilities.assembly_utilities import experimental_local_Mh, find_ordering
+from utilities.assembly_utilities import local_Mh, find_ordering
 import utilities.chi_func as helper_chi_func
 
 import numpy as np
@@ -8,7 +8,7 @@ import porepy as pp
 import pygeon as pg
 
 # Assemble the h-stifness matrix for the moving domain Darcy problem
-def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func):
+def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper_chi_func.Chi_Func, correction=False):
     size = np.power(subdomain.dim + 1, 2) * subdomain.num_cells
     rows_I = np.empty(size, dtype=int)
     cols_J = np.empty(size, dtype=int)
@@ -29,19 +29,21 @@ def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_func: helper
         nodes_loc = cell_nodes.indices[loc]
         coord_loc = node_coords[:, nodes_loc]
 
-        eta_cell = np.max(np.where( boundary_grid.nodes[0, :] < subdomain.cell_centers[0, c] ))
-        
-        ls_node = np.min(coord_loc[0, :])
-        cell_width = np.max(coord_loc[0, :]) - ls_node
+        if correction:
+            eta_cell = np.max(np.where( boundary_grid.nodes[0, :] < subdomain.cell_centers[0, c] ))
+            
+            ls_node = np.min(coord_loc[0, :])
+            cell_width = np.max(coord_loc[0, :]) - ls_node
 
-        ls_eta = eta_dofs[eta_cell]
-        rs_eta = eta_dofs[eta_cell+1]
-        eta = lambda x: ls_eta + (x - ls_node) / cell_width * (rs_eta - ls_eta)
+            ls_eta = eta_dofs[eta_cell]
+            rs_eta = eta_dofs[eta_cell+1]
+            eta = lambda x: ls_eta + (x - ls_node) / cell_width * (rs_eta - ls_eta)
 
-        loc_term = lambda x,y: chi_func.x3_derivative(eta(x), y)
-        #loc_term = lambda x,y: 1
+            loc_term = lambda x,y: chi_func.x3_derivative(eta(x), y)
+        else:
+            loc_term = lambda x,y: 1
 
-        A = experimental_local_Mh(coord_loc, loc_term, quad_order)
+        A = local_Mh(coord_loc, loc_term, quad_order)
 
         # Save values for stiff-H1 local matrix in the global structure
         cols = np.tile(nodes_loc, (nodes_loc.size, 1))

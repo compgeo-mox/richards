@@ -19,14 +19,18 @@ class Csv_Exporter:
         self.path = os.path.join(export_directory, file_name)
         
         if overwrite_existing or not os.path.exists(self.path):
-            with open(self.path, 'w') as f:
-                for i in range(len(headers)-1):
-                    f.write(str(headers[i]) + ',')
-                f.write(str(headers[-1]) + '\n')
+            self.file = open(self.path, 'w')
+            for i in range(len(headers)-1):
+                self.file.write(str(headers[i]) + ',')
+            self.file.write(str(headers[-1]) + '\n')
         
     def add_entry(self, entries):
-        with open(self.path, 'a') as f:
-            for i in range(len(entries)-1):
-                f.write(str(entries[i]))
-                f.write(',')
-            f.write(str(entries[-1]) + '\n')
+        self.file.flush()
+
+        for i in range(len(entries)-1):
+            self.file.write(str(entries[i]))
+            self.file.write(',')
+        self.file.write(str(entries[-1]) + '\n')
+
+    def __del__(self):
+        self.file.close()

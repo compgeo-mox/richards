@@ -7,7 +7,7 @@ from richards.model_params import Model_Data
 from richards.matrix_computer import Matrix_Computer
 
 from richards.solver import Solver
-from richards.solver_params import Solver_Data, Solver_Enum
+from richards.solver_params import Solver_Data, Solver_Enum, Norm_Error
 
 from richards.csv_exporter import Csv_Exporter
 
@@ -94,7 +94,7 @@ def run_experiment(N, prefix_file_name, L_Value, report_output_directory, scheme
     solver_data = Solver_Data(mdg=mdg, initial_solution=initial_solution, scheme=scheme_info, 
                             bc_essential=lambda t: bc_essential, eps_psi_abs=eps_psi_abs,
                             eps_psi_rel=eps_psi_rel, max_iterations_per_step=K,
-                            output_directory=output_directory, L_Scheme_value=L_Value,
+                            output_directory=output_directory, L_Scheme_value=L_Value, norm_error=Norm_Error.EUCLIDIAN,
                             report_name=prefix_file_name, report_directory=report_output_directory,
                             step_output_allowed=False)
 

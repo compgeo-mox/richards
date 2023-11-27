@@ -1,7 +1,6 @@
 ### IMPORTS
 
-import sys, time, os, shutil
-sys.path.insert(0, "/workspaces/richards/")
+import time, os, shutil
 
 from richards.model_params import Model_Data
 from richards.matrix_computer import Matrix_Computer

@@ -1,4 +1,4 @@
-from utilities.assembly_utilities import experimental_local_Mh
+from utilities.assembly_utilities import local_Mh
 
 import numpy as np
 import scipy.sparse as sps
@@ -42,7 +42,7 @@ def global_mass(subdomain, boundary_grid, eta_dofs, quad_order, chi_x3):
 
         loc_term = lambda x,y: chi_x3(eta(x), y)
                                                                 
-        A = experimental_local_Mh(coord_loc, loc_term, quad_order)
+        A = local_Mh(coord_loc, loc_term, quad_order)
 
         # Save values for stiff-H1 local matrix in the global structure
         cols = np.tile(nodes_loc, (nodes_loc.size, 1))
