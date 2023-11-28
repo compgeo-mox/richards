@@ -10,17 +10,17 @@ The steps that must be performed are to install the project with Docker are:
 git clone https://github.com/compgeo-mox/richards --recurse-submodules
 ```
 or
-'''bash
+```bash
 git clone git@github.com:compgeo-mox/richards.git --recurse-submodules
-'''
+```
 2. Build the Docker image:
-'''bash
+```bash
 docker build . -t richards -f .devcontainer/Dockerfile
-'''
+```
 3. Run the container and enter the shell:
-'''bash
+```bash
 docker run --name nn --rm -v $(pwd):/richards -it richards
-'''
+```
 
 Notice that, in order for the code to work, the directory containing the project itself must be included in the python PATH. 
 This process is performed automatically by Docker.
@@ -32,9 +32,9 @@ In the case you prefer to run the code without using Docker, the installation st
 git clone https://github.com/compgeo-mox/richards --recurse-submodules
 ```
 or
-'''bash
+```bash
 git clone git@github.com:compgeo-mox/richards.git --recurse-submodules
-'''
+```
 2. Follow the installation instructions contained in the directories 'porepy' and 'pygeon', and install the two libraries
 3. Add to the Python PATH porepy, pygeon and the directory containing this project.
 
