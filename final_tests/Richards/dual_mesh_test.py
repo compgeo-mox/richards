@@ -27,7 +27,7 @@ eps_psi_rel = 1e-5
 dt_D = 1/16
 problem_name = 'dual_benchmark'
 
-output_directory = 'output_evolutionary'
+output_directory = 'dual_mesh_output_evolutionary'
 
 model_data = Model_Data(theta_r=0.131, theta_s=0.396, alpha=0.423, n=2.06, K_s=4.96e-2, T=9/48, num_steps=9)
 

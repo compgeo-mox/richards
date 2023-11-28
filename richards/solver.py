@@ -304,6 +304,8 @@ class Solver:
             if self.solver_data.norm_error == Norm_Error.L2:
                 return np.sqrt(var.T @ self.computer.mass_matrix_P0() @ var), np.sqrt(prev_h.T @ self.computer.mass_matrix_P0() @ prev_h)
             else:
+                prev_h = self.computer.project_P0_to_solution(prev_h)
+                var = self.computer.project_P0_to_solution(var)
                 return np.sqrt(var.T @ var), np.sqrt(prev_h.T @ prev_h)
 
 
@@ -352,7 +354,6 @@ class Solver:
 
         N = self.computer.mass_matrix_P0()
         rhs = preparation['fixed_rhs'].copy()
-        
 
         # Theta^{n+1}_k
         rhs[-dof_P0:] -= self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta( self.computer.project_P0_to_solution( h ), self.subdomain.cell_centers[1, :] )) / dt
@@ -381,22 +382,20 @@ class Solver:
         psi = prev[-dof_P0:]
 
         N = self.computer.mass_matrix_P0()
+        
         rhs = preparation['fixed_rhs'].copy()
         
-
         # Theta^{n+1}_k
         rhs[-dof_P0:] -= self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta( self.computer.project_P0_to_solution( psi ), np.zeros_like(self.subdomain.cell_centers[1, :]) )) / dt
 
         # Derivative Thetha^{n+1}_k
         rhs[-dof_P0:] += self.solver_data.L_Scheme_value * N @ psi / dt
 
-
         # Construct the local matrices
         M_k_n_1 = self.computer.mass_matrix_RT0_conductivity(pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient( self.computer.project_P0_to_solution( psi ), np.zeros_like(self.subdomain.cell_centers[1, :]) )))
 
         spp = sps.bmat([[                  M_k_n_1,               self.computer.matrix_B().T], 
                         [-self.computer.matrix_B(), self.solver_data.L_Scheme_value * N / dt]], format="csc")
-
 
         # Solve the problem
         ls = pg.LinearSystem(spp, rhs)
@@ -451,6 +450,19 @@ class Solver:
             
         return {'t_n_1': t_n_1, 'fixed_rhs': fixed_rhs.copy()}
     
+    def _newton_preparation_psi(self, sol_n, t_n_1):
+        # assemble the right-hand side
+        fixed_rhs = self.__prepare_time_rhs(t_n_1)
+
+        # Theta^n
+        if self.solver_data.primal:
+            fixed_rhs += self.computer.mass_matrix_P1() @ self.computer.project_function_to_P1(self.model_data.theta( sol_n, np.zeros_like(self.subdomain.nodes[1, :]) ) ) / self.model_data.dt
+        else:
+            fixed_rhs[-self.computer.dof_P0:] += self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta( self.computer.project_P0_to_solution( sol_n[-self.computer.dof_P0:] ), np.zeros_like(self.subdomain.cell_centers[1, :]) ) ) / self.model_data.dt
+            
+
+        return {'t_n_1': t_n_1, 'fixed_rhs': fixed_rhs.copy()}
+    
     def _dual_newton_method_step(self, preparation, k, prev):
         dof_h = self.computer.dof_P0
         dof_q = self.computer.dof_RT0
@@ -480,6 +492,41 @@ class Solver:
                         [     -B,  D / dt]], format="csc")
             
             
+        # solve the problem
+        ls = pg.LinearSystem(spp, rhs)
+        
+        ls.flag_ess_bc(self.solver_data.bc_essential(preparation['t_n_1']), self.solver_data.bc_essential_value(preparation['t_n_1']))
+        
+        return ls.solve()
+    
+    def _dual_newton_method_step_psi(self, preparation, k, prev):
+        dof_h = self.computer.dof_P0
+        dof_q = self.computer.dof_RT0
+        dt = self.model_data.dt
+
+        h = prev[-dof_h:]
+        q   = prev[:dof_q]
+
+        rhs = preparation['fixed_rhs'].copy()
+
+        C = self.computer.dual_C(self.model_data, self.computer.project_P0_to_solution( h ), q)
+        B = self.computer.matrix_B()
+
+        rhs[:dof_q] += C @ h
+
+
+        # Theta^{n+1}_k
+        rhs[-dof_h:] -= self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta( self.computer.project_P0_to_solution( h ), np.zeros_like(self.subdomain.cell_centers[1, :]) )) / dt
+            
+        D = self.computer.mass_matrix_P0() @ sps.diags(self.model_data.theta(self.computer.project_P0_to_solution( h ), np.zeros_like(self.subdomain.cell_centers[1, :]), 1), format="csc")
+        rhs[-dof_h:] += D @ h / dt
+
+        # construct the local matrices
+        M_k_n_1 = self.computer.mass_matrix_RT0_conductivity(pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(self.computer.project_P0_to_solution( h ), np.zeros_like(self.subdomain.cell_centers[1, :]))))
+
+        spp = sps.bmat([[M_k_n_1, B.T + C], 
+                        [     -B,  D / dt]], format="csc")
+        
         # solve the problem
         ls = pg.LinearSystem(spp, rhs)
         
@@ -536,6 +583,20 @@ class Solver:
         
         return {'t_n_1': t_n_1, 'fixed_rhs': fixed_rhs.copy()}
     
+    def _modified_picard_preparation_psi(self, sol_n, t_n_1):
+        dof_psi = self.computer.dof_P0
+
+        # Assemble the right-hand side
+        fixed_rhs = self.__prepare_time_rhs(t_n_1)
+
+        # Theta^n
+        if self.solver_data.primal:
+            fixed_rhs += self.computer.mass_matrix_P1() @ self.computer.project_function_to_P1(self.model_data.theta( sol_n, np.zeros_like(self.subdomain.nodes[1, :]) ) ) / self.model_data.dt
+        else:
+            fixed_rhs[-self.computer.dof_P0:] += self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta( self.computer.project_P0_to_solution( sol_n[-self.computer.dof_P0:] ), np.zeros_like(self.subdomain.cell_centers[1, :]) ) ) / self.model_data.dt
+        
+        return {'t_n_1': t_n_1, 'fixed_rhs': fixed_rhs.copy()}
+    
     def _dual_modified_picard_method_step(self, preparation, k, prev):
         dof_psi = self.computer.dof_P0
 
@@ -557,6 +618,37 @@ class Solver:
 
         # Construct the local matrices
         M_k_n_1 = self.computer.mass_matrix_RT0_conductivity(pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(self.computer.project_P0_to_solution( h ), self.subdomain.cell_centers[1, :])))
+            
+        spp = sps.bmat([[M_k_n_1,    B.T], 
+                        [     -B, N / dt]], format="csc")
+
+        # Solve the problem
+        ls = pg.LinearSystem(spp, rhs)
+        ls.flag_ess_bc(self.solver_data.bc_essential(preparation['t_n_1']), self.solver_data.bc_essential_value(preparation['t_n_1']))
+        
+        return ls.solve()
+    
+    def _dual_modified_picard_method_step_psi(self, preparation, k, prev):
+        dof_psi = self.computer.dof_P0
+
+        dt = self.model_data.dt
+
+        h = prev[-dof_psi:]
+        B = self.computer.matrix_B()
+
+        N = self.computer.mass_matrix_P0() @ sps.diags(self.model_data.theta(self.computer.project_P0_to_solution( h ), np.zeros_like(self.subdomain.cell_centers[1, :]), 1), format="csc")
+
+        rhs = preparation['fixed_rhs'].copy()
+
+        # Theta^{n+1}_k
+        rhs[-dof_psi:] -= self.computer.mass_matrix_P0() @ self.computer.project_function_to_P0(self.model_data.theta(self.computer.project_P0_to_solution( h ), np.zeros_like(self.subdomain.cell_centers[1, :]))) / dt
+
+        # Derivative Thetha^{n+1}_k
+        rhs[-dof_psi:] += N @ h / dt
+
+
+        # Construct the local matrices
+        M_k_n_1 = self.computer.mass_matrix_RT0_conductivity(pp.SecondOrderTensor(self.model_data.hydraulic_conductivity_coefficient(self.computer.project_P0_to_solution( h ), np.zeros_like(self.subdomain.cell_centers[1, :]))))
             
         spp = sps.bmat([[M_k_n_1,    B.T], 
                         [     -B, N / dt]], format="csc")
