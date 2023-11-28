@@ -48,4 +48,4 @@ In particular:
 - plotters: It's the directory containing the notebooks used to generate the plots contained in the thesis
 - porepy and pygeon: Those are the two main dependencies of this project. They can be installed by following their own installation instructions (the Dockerfile automatically installs them and all the required dependencies)
 - richards: It's the directory containing part of the library that we developed to solve Richards's problem
-- utilities: It's the directory containing a collection of simple modules used by the aformentioned library to produce to solve the different problems.
+- utilities: It's the directory containing a collection of simple modules used by the aformentioned library to solve the different problems.
