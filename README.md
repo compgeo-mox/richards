@@ -3,8 +3,8 @@ This repository contains the code developed throught for my master thesis, title
 
 
 ### Installation
-To install the project, we advise to install and run the project through Docker (the Dockerfile of the project is available in the directory .devcontainer).
-The steps that must be performed are to install the project with Docker are:
+To install the project, we advise you to install and run the project through Docker (the Dockerfile of the project is available in the directory .devcontainer).
+The steps that must be performed to install the project with Docker are:
 1. Clone the repository:
 ```bash
 git clone https://github.com/compgeo-mox/richards --recurse-submodules
@@ -13,7 +13,7 @@ or
 ```bash
 git clone git@github.com:compgeo-mox/richards.git --recurse-submodules
 ```
-2. Build the Docker image:
+2. Enter in the repository directory and build the Docker image:
 ```bash
 docker build . -t richards -f .devcontainer/Dockerfile
 ```
@@ -22,7 +22,7 @@ docker build . -t richards -f .devcontainer/Dockerfile
 docker run --name nn --rm -v $(pwd):/richards -it richards
 ```
 
-Notice that, in order for the code to work, the directory containing the project itself must be included in the python PATH. 
+Notice that, in order for the code to work, the directory containing the project itself must be included in the Python PATH. 
 This process is performed automatically by Docker.
 
 In the case you prefer to run the code without using Docker, the installation steps are:
@@ -36,7 +36,11 @@ or
 git clone git@github.com:compgeo-mox/richards.git --recurse-submodules
 ```
 2. Follow the installation instructions contained in the directories 'porepy' and 'pygeon', and install the two libraries
-3. Add to the Python PATH porepy, pygeon and the directory containing this project.
+3. Add to the Python PATH porepy, pygeon, and the directory containing this project.
+
+The installing procedure is greatly simplified if Visual Studio Code is employed.
+In fact, after having cloned the directory, Visual Studio Code will automatically detect when opening the project, the Dockerfile and ask the user to run the project inside a develop container.
+In this way, the only requirement is to clone the repository.
 
 ### Code Structure
 
