@@ -39,9 +39,12 @@ WORKDIR ${MY_DIR}/pygeon
 RUN python3 -m pip install .
 
 WORKDIR ${MY_DIR}
-COPY richards richards
-COPY tests tests
 
-ENV PYTHONPATH "${PYTHONPATH}:/workspaces/richards"
+COPY final_tests final_tests
+COPY plotters plotters
+COPY richards richards
+COPY utilities utilities
+
+ENV PYTHONPATH "${PYTHONPATH}:/workspaces/richards:/root/richards"
 
 CMD bash
