@@ -36,7 +36,11 @@ or
 git clone git@github.com:compgeo-mox/richards.git --recurse-submodules
 ```
 2. Follow the installation instructions contained in the directories 'porepy' and 'pygeon', and install the two libraries
-3. Add to the Python PATH porepy, pygeon, and the directory containing this project.
+3. Install the following pip packages:
+```bash
+python3 -m pip install cython numba shapely ipython ipykernel jupyterlab
+```
+4. Add to the Python PATH porepy, pygeon, and the directory containing this project.
 
 The installing procedure is greatly simplified if Visual Studio Code is employed.
 In fact, after cloning the directory, Visual Studio Code will automatically detect the Dockerfile when opening the project and ask the user to run the project inside a developing container.
